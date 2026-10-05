@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment variables & secrets (NEVER COMMIT ACTUAL SECRETS)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Database & temp files
+*.dump
+*.seed
+.system_generated/
