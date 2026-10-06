@@ -16,7 +16,7 @@ const validateConfig = () => {
   if (!useMemoryDb) {
     if (!mongoUri || mongoUri.trim() === '') {
       throw new Error(
-        'MONGODB_URI is missing in backend/.env. Please configure your MongoDB Atlas connection string.'
+        'MONGODB_URI is missing from environment variables. Please configure your MongoDB Atlas connection string.'
       );
     }
 
@@ -37,7 +37,7 @@ const validateConfig = () => {
 
     if (hasPlaceholder) {
       throw new Error(
-        "MONGODB_URI in backend/.env contains a placeholder. Please replace '<I WILL ENTER THE REAL ATLAS URI>' with your actual MongoDB Atlas connection string (including your real password)."
+        "MONGODB_URI contains a placeholder. Please replace placeholder tokens with your actual MongoDB Atlas connection string (including your real password)."
       );
     }
   }

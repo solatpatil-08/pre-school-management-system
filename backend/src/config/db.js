@@ -53,92 +53,113 @@ const resolveDirectAtlasUri = async (srvUri) => {
   }
 };
 
-const connectDB = async () => {
-  const useMemoryDb = String(process.env.USE_MEMORY_DB).toLowerCase() === 'true';
-  const isProduction = process.env.NODE_ENV === 'production';
+// Cache connection across serverless function invocations (Vercel)
+let cachedPromise = null;
 
-  // 1. In-Memory Database Mode: ONLY used when explicitly requested via USE_MEMORY_DB=true
-  if (useMemoryDb) {
-    if (isProduction) {
-      console.error('[Database] Critical Error: USE_MEMORY_DB cannot be used in production.');
-      process.exit(1);
-    }
-    console.log('[Database] USE_MEMORY_DB=true: Initializing in-memory MongoDB for local development...');
-    try {
-      const { MongoMemoryServer } = require('mongodb-memory-server');
-      const mongod = await MongoMemoryServer.create();
-      const inMemoryUri = mongod.getUri();
-      const conn = await mongoose.connect(inMemoryUri, {
-        dbName: 'preschool_management',
-      });
-      console.log('[Database] Connected to In-Memory MongoDB for local development.');
-      return conn;
-    } catch (err) {
-      console.error('[Database] Critical: Could not connect to in-memory database:', maskCredentials(err.message));
-      throw err;
-    }
+const connectDB = async () => {
+  // If already connected, reuse existing active connection immediately
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
 
-  // 2. MongoDB Atlas / Standard Connection (Default)
-  const mongoUri = process.env.MONGODB_URI;
+  // If a connection attempt is in-flight, await the same promise
+  if (cachedPromise) {
+    return cachedPromise;
+  }
 
-  try {
-    mongoose.set('strictQuery', false);
+  cachedPromise = (async () => {
+    const useMemoryDb = String(process.env.USE_MEMORY_DB).toLowerCase() === 'true';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    let conn;
-    try {
-      conn = await mongoose.connect(mongoUri, {
-        dbName: 'preschool_management',
-        authSource: 'admin',
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 15000,
-      });
-    } catch (initialErr) {
-      if (
-        (initialErr.message.includes('querySrv') || initialErr.message.includes('ECONNREFUSED')) &&
-        typeof mongoUri === 'string' &&
-        mongoUri.startsWith('mongodb+srv://')
-      ) {
-        console.warn('[Database] SRV DNS resolution failed on local network. Attempting direct shard connection fallback...');
-        const directUri = await resolveDirectAtlasUri(mongoUri);
-        if (directUri) {
-          conn = await mongoose.connect(directUri, {
-            dbName: 'preschool_management',
-            authSource: 'admin',
-            serverSelectionTimeoutMS: 10000,
-            connectTimeoutMS: 15000,
-          });
-        } else {
-          throw initialErr;
-        }
-      } else {
-        throw initialErr;
+    // 1. In-Memory Database Mode: ONLY used when explicitly requested via USE_MEMORY_DB=true
+    if (useMemoryDb) {
+      if (isProduction) {
+        throw new Error('[Database] Critical Error: USE_MEMORY_DB cannot be used in production.');
+      }
+      console.log('[Database] USE_MEMORY_DB=true: Initializing in-memory MongoDB for local development...');
+      try {
+        const { MongoMemoryServer } = require('mongodb-memory-server');
+        const mongod = await MongoMemoryServer.create();
+        const inMemoryUri = mongod.getUri();
+        const conn = await mongoose.connect(inMemoryUri, {
+          dbName: 'preschool_management',
+        });
+        console.log('[Database] Connected to In-Memory MongoDB for local development.');
+        return conn;
+      } catch (err) {
+        console.error('[Database] Critical: Could not connect to in-memory database:', maskCredentials(err.message));
+        throw err;
       }
     }
 
-    // Verify active database connectivity with admin ping
-    await conn.connection.db.admin().ping();
+    // 2. MongoDB Atlas / Standard Connection (Default)
+    const mongoUri = process.env.MONGODB_URI;
 
-    const isAtlas =
-      conn.connection.host.includes('mongodb.net') ||
-      (typeof mongoUri === 'string' && mongoUri.startsWith('mongodb+srv://'));
+    try {
+      mongoose.set('strictQuery', false);
 
-    if (isAtlas) {
-      console.log('[Database] Connected to MongoDB Atlas');
-    } else {
-      console.log(`[Database] Connected to MongoDB (${conn.connection.host})`);
+      let conn;
+      try {
+        conn = await mongoose.connect(mongoUri, {
+          dbName: 'preschool_management',
+          authSource: 'admin',
+          serverSelectionTimeoutMS: 10000,
+          connectTimeoutMS: 15000,
+        });
+      } catch (initialErr) {
+        if (
+          (initialErr.message.includes('querySrv') || initialErr.message.includes('ECONNREFUSED')) &&
+          typeof mongoUri === 'string' &&
+          mongoUri.startsWith('mongodb+srv://')
+        ) {
+          console.warn('[Database] SRV DNS resolution failed on local network. Attempting direct shard connection fallback...');
+          const directUri = await resolveDirectAtlasUri(mongoUri);
+          if (directUri) {
+            conn = await mongoose.connect(directUri, {
+              dbName: 'preschool_management',
+              authSource: 'admin',
+              serverSelectionTimeoutMS: 10000,
+              connectTimeoutMS: 15000,
+            });
+          } else {
+            throw initialErr;
+          }
+        } else {
+          throw initialErr;
+        }
+      }
+
+      // Verify active database connectivity with admin ping
+      await conn.connection.db.admin().ping();
+
+      const isAtlas =
+        conn.connection.host.includes('mongodb.net') ||
+        (typeof mongoUri === 'string' && mongoUri.startsWith('mongodb+srv://'));
+
+      if (isAtlas) {
+        console.log('[Database] Connected to MongoDB Atlas');
+      } else {
+        console.log(`[Database] Connected to MongoDB (${conn.connection.host})`);
+      }
+
+      return conn;
+    } catch (err) {
+      const safeMsg = maskCredentials(err.message);
+      console.error(`[Database] Connection failed: ${safeMsg}`);
+      if (err.name === 'MongooseServerSelectionError' || err.message.includes('Could not connect to any servers')) {
+        console.error('[Database] Action required: MongoDB Atlas rejected the connection. This happens when the current client IP address is not whitelisted in Atlas Network Access. In MongoDB Atlas, go to "Network Access" -> click "Add IP Address" -> choose "Allow Access from Anywhere" (0.0.0.0/0).');
+      } else if (err.message.includes('auth') || err.message.includes('authentication failed')) {
+        console.error('[Database] Action required: MongoDB Atlas rejected the credentials for your database user. Please verify or reset your database user password in MongoDB Atlas -> Database Access -> Edit Password, and update backend/.env.');
+      }
+      throw err;
     }
+  })();
 
+  try {
+    const conn = await cachedPromise;
     return conn;
   } catch (err) {
-    const safeMsg = maskCredentials(err.message);
-    console.error(`[Database] Connection failed: ${safeMsg}`);
-    if (err.name === 'MongooseServerSelectionError' || err.message.includes('Could not connect to any servers')) {
-      console.error('[Database] Action required: MongoDB Atlas rejected the connection. This happens when the current client IP address is not whitelisted in Atlas Network Access. In MongoDB Atlas, go to "Network Access" -> click "Add IP Address" -> choose "Allow Access from Anywhere" (0.0.0.0/0).');
-    } else if (err.message.includes('auth') || err.message.includes('authentication failed')) {
-      console.error('[Database] Action required: MongoDB Atlas rejected the credentials for your database user. Please verify or reset your database user password in MongoDB Atlas -> Database Access -> Edit Password, and update backend/.env.');
-    }
-    // DO NOT automatically fall back to in-memory MongoDB (Requirements 7 & 8)
+    cachedPromise = null; // Reset cache so subsequent requests can retry
     throw err;
   }
 };

@@ -26,6 +26,9 @@ const settingRoutes = require('./routes/settingRoutes');
 
 const app = express();
 
+// Trust reverse proxy (Vercel, AWS ALB, Nginx) for accurate client IP resolution
+app.set('trust proxy', 1);
+
 // Disable information disclosure headers
 app.disable('x-powered-by');
 
@@ -83,6 +86,7 @@ app.use(
       const isAllowed =
         allowedOrigins.includes(normalizedOrigin) ||
         process.env.NODE_ENV !== 'production' ||
+        normalizedOrigin.endsWith('.vercel.app') ||
         (process.env.CLIENT_URL && process.env.CLIENT_URL.includes('.vercel.app') && normalizedOrigin.endsWith('.vercel.app'));
 
       if (isAllowed) {
@@ -137,6 +141,22 @@ app.get('/api/health', (req, res) => {
       name: mongoose.connection.name || 'preschool_management',
     },
   });
+});
+
+// Database connection middleware (ensures active connection for serverless invocations on Vercel)
+const connectDB = require('./config/db');
+
+app.use('/api', async (req, res, next) => {
+  // Let health check endpoint report its own connection status
+  if (req.path === '/health') {
+    return next();
+  }
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Mount API Routes

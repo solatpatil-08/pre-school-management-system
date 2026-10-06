@@ -41,5 +41,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// In standalone / local environment, start HTTP listener
+if (require.main === module || !process.env.VERCEL) {
+  startServer();
+}
 
+module.exports = app;

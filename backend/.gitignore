@@ -4,7 +4,13 @@ node_modules/
 # Environment variables & secrets (NEVER COMMIT ACTUAL SECRETS)
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
+
+# Build outputs
+dist/
+build/
 
 # Logs
 logs/
