@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 const dns = require('dns');
 
-// Fix Windows / ISP querySrv ECONNREFUSED by setting public DNS resolvers
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (e) {
-  // Ignore fallback
+// Fix Windows / ISP querySrv ECONNREFUSED by setting public DNS resolvers on Windows
+if (process.platform === 'win32') {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch (e) {
+    // Ignore fallback
+  }
 }
 
 const maskCredentials = (msg) => {
@@ -23,7 +25,9 @@ const resolveDirectAtlasUri = async (srvUri) => {
     if (!dbPath || dbPath === '/') dbPath = '/preschool_management';
     const query = match[4] || '';
 
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
+    try {
+      dns.setServers(['8.8.8.8', '1.1.1.1']);
+    } catch (e) {}
     const records = await dns.promises.resolveSrv(`_mongodb._tcp.${srvHost}`);
     if (!records || records.length === 0) return null;
 
@@ -93,7 +97,12 @@ const connectDB = async () => {
     }
 
     // 2. MongoDB Atlas / Standard Connection (Default)
-    const mongoUri = process.env.MONGODB_URI;
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || process.env.DATABASE_URL;
+
+    if (!mongoUri || mongoUri.trim() === '') {
+      console.error('[Database] Critical Error: MONGODB_URI is not set in environment variables.');
+      throw new Error('MONGODB_URI environment variable is missing.');
+    }
 
     try {
       mongoose.set('strictQuery', false);
@@ -141,6 +150,14 @@ const connectDB = async () => {
       } else {
         console.log(`[Database] Connected to MongoDB (${conn.connection.host})`);
       }
+
+      // Ensure seed data exists idempotently (safe for Vercel serverless where startServer is not called)
+      try {
+        const runSeed = require('../seeds/seedFunction');
+        runSeed().catch((seedErr) => {
+          console.warn('[Database Seed] Non-fatal seed check notice:', seedErr.message);
+        });
+      } catch (e) {}
 
       return conn;
     } catch (err) {

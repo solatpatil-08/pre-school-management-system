@@ -56,7 +56,12 @@ const errorHandler = (err, req, res, _next) => {
     message = 'Authentication token expired. Please log in again.';
   }
 
-  // Mask internal 500 errors in production to avoid leaking server internals
+  // Log 500 errors so they appear in Vercel runtime logs for debugging
+  if (statusCode >= 500) {
+    console.error(`[API 500 Error] ${req.method} ${req.originalUrl}:`, err);
+  }
+
+  // Mask internal 500 errors in production response body to avoid leaking server internals
   if (statusCode === 500 && process.env.NODE_ENV === 'production') {
     message = 'An unexpected internal server error occurred.';
   }

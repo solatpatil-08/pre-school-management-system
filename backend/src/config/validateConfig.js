@@ -6,7 +6,7 @@ const validateConfig = () => {
   const port = parseInt(process.env.PORT, 10) || 5000;
   const nodeEnv = process.env.NODE_ENV || 'development';
   const useMemoryDb = String(process.env.USE_MEMORY_DB).toLowerCase() === 'true';
-  const mongoUri = process.env.MONGODB_URI;
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || process.env.DATABASE_URL;
 
   if (!process.env.JWT_SECRET) {
     console.warn('[Config Warning] JWT_SECRET is not set in environment variables. Using default development secret.');
