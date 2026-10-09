@@ -46,6 +46,14 @@ const STATUS_CONFIG = {
   },
 };
 
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const AttendanceManagement = () => {
   // Navigation tabs: 'daily' (Take Attendance) or 'history' (Attendance History)
   const [activeTab, setActiveTab] = useState('daily');
@@ -53,7 +61,8 @@ const AttendanceManagement = () => {
   // Shared state
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString);
+  const [isExistingAttendance, setIsExistingAttendance] = useState(false);
 
   // Daily Marking State
   const [students, setStudents] = useState([]);
@@ -107,6 +116,57 @@ const AttendanceManagement = () => {
     fetchClasses();
   }, []);
 
+  // Extract distinct class names and sections
+  const classNames = useMemo(() => {
+    const list = [];
+    classes.forEach((c) => {
+      const name = c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name;
+      if (name && !list.includes(name)) list.push(name);
+    });
+    return list;
+  }, [classes]);
+
+  const currentClass = useMemo(() => {
+    return classes.find((c) => c._id === selectedClass) || classes[0] || null;
+  }, [classes, selectedClass]);
+
+  const currentClassName = currentClass
+    ? (currentClass.className || currentClass.name?.replace(/\s+[A-Z]$/, '') || currentClass.name)
+    : '';
+  const currentSection = currentClass?.section || 'A';
+
+  const availableSections = useMemo(() => {
+    if (!currentClassName) return ['A'];
+    const matches = classes.filter(
+      (c) => (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === currentClassName
+    );
+    const sects = matches.map((c) => c.section || 'A');
+    return Array.from(new Set(sects));
+  }, [classes, currentClassName]);
+
+  const handleSelectClassName = (name) => {
+    let match = classes.find(
+      (c) =>
+        (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === name &&
+        (c.section || 'A') === currentSection
+    );
+    if (!match) {
+      match = classes.find(
+        (c) => (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === name
+      );
+    }
+    if (match) setSelectedClass(match._id);
+  };
+
+  const handleSelectSection = (sec) => {
+    const match = classes.find(
+      (c) =>
+        (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === currentClassName &&
+        (c.section || 'A') === sec
+    );
+    if (match) setSelectedClass(match._id);
+  };
+
   // Fetch class students and existing daily attendance
   const loadDailyAttendance = async () => {
     if (!selectedClass || !selectedDate) return;
@@ -127,6 +187,8 @@ const AttendanceManagement = () => {
         attendanceRes.data?.data?.records ||
         attendanceRes.data?.records ||
         (Array.isArray(attendanceRes.data?.data) ? attendanceRes.data.data : []);
+
+      setIsExistingAttendance(existingLogs.length > 0);
 
       const newMap = {};
       const newRemarks = {};
@@ -255,7 +317,7 @@ const AttendanceManagement = () => {
       });
 
       if (res.data?.success) {
-        showToast(`Attendance published successfully for ${students.length} students!`, 'success');
+        showToast('Attendance saved successfully.', 'success');
         loadDailyAttendance();
       }
     } catch (err) {
@@ -382,24 +444,45 @@ const AttendanceManagement = () => {
       {/* ================= TAB 1: DAILY MARKING ================= */}
       {activeTab === 'daily' && (
         <div className="space-y-6">
-          {/* Controls: Select Class, Select Date, Quick Mark */}
+          {/* Controls: Select Class, Select Division, Select Date, Quick Mark */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-card flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              {/* Select Classroom */}
+              {/* Select Class */}
               <div className="flex items-center gap-2.5 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
                 <School className="w-4 h-4 text-indigo-600" />
                 <div>
                   <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    Classroom
+                    Class
                   </label>
                   <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    value={currentClassName}
+                    onChange={(e) => handleSelectClassName(e.target.value)}
                     className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
                   >
-                    {classes.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.className || c.name} (Section {c.section})
+                    {classNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Select Division / Section */}
+              <div className="flex items-center gap-2.5 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
+                <School className="w-4 h-4 text-purple-600" />
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    Division / Section
+                  </label>
+                  <select
+                    value={currentSection}
+                    onChange={(e) => handleSelectSection(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {availableSections.map((sec) => (
+                      <option key={sec} value={sec}>
+                        Division {sec}
                       </option>
                     ))}
                   </select>
@@ -451,6 +534,19 @@ const AttendanceManagement = () => {
               </button>
             </div>
           </div>
+
+          {/* Existing Attendance Notice Banner */}
+          {isExistingAttendance && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-semibold animate-fade-in shadow-subtle">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Attendance for this class and date already exists. You can update it.</span>
+              </div>
+              <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-200">
+                Existing Record
+              </span>
+            </div>
+          )}
 
           {/* Live Statistics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">

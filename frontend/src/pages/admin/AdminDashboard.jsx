@@ -22,11 +22,13 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 import { Skeleton, SkeletonStats, SkeletonCard } from '../../components/common/Skeleton';
 import ErrorState from '../../components/common/ErrorState';
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -120,7 +122,7 @@ const AdminDashboard = () => {
             Administrator Portal
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Sunshine Kids Executive Dashboard
+            Welcome back, {user?.name || 'Administrator'}!
           </h1>
           <p className="text-primary-100 text-sm mt-1 max-w-xl">
             Live overview of student admissions, educator assignments, daily attendance logs, and school fee collections.
@@ -251,7 +253,7 @@ const AdminDashboard = () => {
             </div>
             <div className="mt-3">
               <span className="text-3xl font-black text-slate-900">
-                ${(financials.pendingFees !== undefined ? financials.pendingFees : (financials.totalPending || 0)).toLocaleString()}
+                ₹{(financials.pendingFees !== undefined ? financials.pendingFees : (financials.totalPending || 0)).toLocaleString('en-IN')}
               </span>
               <p className="text-[11px] text-amber-700 font-semibold mt-1">
                 {financials.pendingCount || 0} invoice(s) awaiting payment
@@ -272,7 +274,7 @@ const AdminDashboard = () => {
             </div>
             <div className="mt-3">
               <span className="text-3xl font-black text-rose-600">
-                ${(financials.overdueFees !== undefined ? financials.overdueFees : (financials.totalOverdue || 0)).toLocaleString()}
+                ₹{(financials.overdueFees !== undefined ? financials.overdueFees : (financials.totalOverdue || 0)).toLocaleString('en-IN')}
               </span>
               <p className="text-[11px] text-rose-600 font-semibold mt-1">
                 {financials.overdueCount || 0} invoice(s) past due date

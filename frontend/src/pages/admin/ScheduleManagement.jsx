@@ -18,7 +18,7 @@ import {
   MapPin,
 } from 'lucide-react';
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const ACTIVITY_BADGES = {
   Academic: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -124,7 +124,7 @@ const ScheduleManagement = () => {
     return classes.find((c) => String(c._id) === String(selectedClass)) || null;
   }, [classes, selectedClass]);
 
-  // Group schedules by day of week (Monday to Friday)
+  // Group schedules by day of week (Monday to Saturday)
   const groupedSchedules = useMemo(() => {
     const map = {
       Monday: [],
@@ -132,6 +132,7 @@ const ScheduleManagement = () => {
       Wednesday: [],
       Thursday: [],
       Friday: [],
+      Saturday: [],
     };
 
     schedules.forEach((slot) => {
@@ -148,6 +149,16 @@ const ScheduleManagement = () => {
 
     return map;
   }, [schedules]);
+
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return 0;
+    const parts = timeStr.trim().split(':');
+    return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+  };
+
+  const intervalsOverlap = (startA, endA, startB, endB) => {
+    return startA < endB && endA > startB;
+  };
 
   const handleOpenAdd = (dayPreset = 'Monday') => {
     setConflictError('');
@@ -195,6 +206,39 @@ const ScheduleManagement = () => {
       return;
     }
 
+    const startM = timeToMinutes(formData.startTime);
+    const endM = timeToMinutes(formData.endTime);
+
+    if (startM >= endM) {
+      const err = 'Start time must be before end time.';
+      setConflictError(err);
+      showToast(err, 'error');
+      return;
+    }
+
+    // Client-side timetable conflict detection for this class
+    const targetDay = formData.day;
+    const currentSlotId = activeSlot?._id ? String(activeSlot._id) : null;
+    const targetTeacherId = formData.teacher ? String(formData.teacher) : null;
+    const targetRoom = formData.room ? formData.room.trim().toLowerCase() : '';
+
+    for (const slot of schedules) {
+      if (currentSlotId && String(slot._id) === currentSlotId) continue;
+      const slotDay = slot.day || slot.dayOfWeek;
+      if (slotDay !== targetDay) continue;
+
+      const slotStart = timeToMinutes(slot.startTime);
+      const slotEnd = timeToMinutes(slot.endTime);
+
+      if (intervalsOverlap(startM, endM, slotStart, slotEnd)) {
+        const slotActivity = slot.activity || slot.activityName || 'Subject';
+        const err = `Schedule conflict: Class already has "${slotActivity}" scheduled from ${slot.startTime} to ${slot.endTime}.`;
+        setConflictError(err);
+        showToast(err, 'error');
+        return;
+      }
+    }
+
     const payload = {
       class: formData.class || selectedClass,
       teacher: formData.teacher || null,
@@ -231,6 +275,7 @@ const ScheduleManagement = () => {
       const msg = err.response?.data?.message || 'Failed to save timetable slot';
       if (err.response?.status === 409) {
         setConflictError(msg);
+        showToast(msg, 'error');
       } else {
         showToast(msg, 'error');
       }
@@ -283,8 +328,8 @@ const ScheduleManagement = () => {
 
       {/* Control Bar: Class Selector & View Toggles */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-card flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Class Selector */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        {/* Class Selector & Class Teacher Display */}
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <School className="w-4 h-4 text-indigo-600" />
           </div>
@@ -295,7 +340,7 @@ const ScheduleManagement = () => {
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="mt-0.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+              className="mt-0.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer"
             >
               {classes.map((cls) => (
                 <option key={cls._id} value={cls._id}>
@@ -304,9 +349,23 @@ const ScheduleManagement = () => {
               ))}
             </select>
           </div>
+
+          {currentClassObj && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs">
+              <User className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="text-slate-500 font-medium">Class Teacher:</span>
+              <span className="font-bold text-indigo-900">
+                {currentClassObj.classTeacher?.firstName
+                  ? `${currentClassObj.classTeacher.firstName} ${currentClassObj.classTeacher.lastName || ''}`.trim()
+                  : (currentClassObj.teacher?.firstName
+                      ? `${currentClassObj.teacher.firstName} ${currentClassObj.teacher.lastName || ''}`.trim()
+                      : 'Not Assigned')}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* View Switcher: Weekly Timetable (Mon-Fri) vs Daily Schedule */}
+        {/* View Switcher: Weekly Timetable (Mon-Sat) vs Daily Schedule */}
         <div className="flex items-center bg-slate-100/80 p-1 rounded-xl self-stretch md:self-auto border border-slate-200/50">
           <button
             type="button"
@@ -318,7 +377,7 @@ const ScheduleManagement = () => {
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
-            <span>Timetable View (Mon - Fri)</span>
+            <span>Timetable View (Mon - Sat)</span>
           </button>
           <button
             type="button"
@@ -345,7 +404,7 @@ const ScheduleManagement = () => {
         />
       ) : (
         <>
-          {/* VIEW 1: WEEKLY TIMETABLE (Monday, Tuesday, Wednesday, Thursday, Friday) */}
+          {/* VIEW 1: WEEKLY TIMETABLE (Monday to Saturday) */}
           {viewMode === 'timetable' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
@@ -359,8 +418,8 @@ const ScheduleManagement = () => {
                 <span className="hidden sm:inline">Conflict prevention active across classes, teachers, and rooms</span>
               </div>
 
-              {/* 5-Column Responsive Timetable Grid (Monday - Friday) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
+              {/* 6-Column Responsive Timetable Grid (Monday - Saturday) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-start">
                 {WEEKDAYS.map((day) => {
                   const daySlots = groupedSchedules[day] || [];
                   return (

@@ -477,7 +477,7 @@ const FeeManagement = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
-            ${(metrics.totalBilled || 0).toLocaleString()}
+            ₹{(metrics.totalBilled || 0).toLocaleString()}
           </h3>
           <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-50">
             <span>Academic Year 2026-2027</span>
@@ -494,7 +494,7 @@ const FeeManagement = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-emerald-700 mt-2">
-            ${(metrics.totalCollected || 0).toLocaleString()}
+            ₹{(metrics.totalCollected || 0).toLocaleString()}
           </h3>
           <div className="mt-2 pt-2 border-t border-emerald-50 flex items-center justify-between text-[11px]">
             <span className="text-emerald-600 font-semibold">
@@ -515,7 +515,7 @@ const FeeManagement = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-amber-700 mt-2">
-            ${(metrics.totalPending || 0).toLocaleString()}
+            ₹{(metrics.totalPending || 0).toLocaleString()}
           </h3>
           <div className="mt-2 pt-2 border-t border-amber-50 flex items-center justify-between text-[11px]">
             <span className="text-amber-600 font-semibold">{metrics.pendingCount || 0} Pending</span>
@@ -532,7 +532,7 @@ const FeeManagement = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-rose-700 mt-2">
-            ${(metrics.totalOverdue || 0).toLocaleString()}
+            ₹{(metrics.totalOverdue || 0).toLocaleString()}
           </h3>
           <div className="mt-2 pt-2 border-t border-rose-50 flex items-center justify-between text-[11px]">
             <span className="text-rose-600 font-bold">{metrics.overdueCount || 0} Invoices Overdue</span>
@@ -751,7 +751,7 @@ const FeeManagement = () => {
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="font-extrabold text-emerald-600 text-sm">
-                          ${(p.amount || 0).toLocaleString()}
+                          ₹{(p.amount || 0).toLocaleString()}
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
@@ -846,11 +846,11 @@ const FeeManagement = () => {
                         </td>
 
                         <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
-                          ${totalAmt?.toLocaleString()}
+                          ₹{totalAmt?.toLocaleString()}
                         </td>
 
                         <td className="py-3.5 px-4 font-bold text-emerald-600">
-                          ${paidAmt?.toLocaleString()}
+                          ₹{paidAmt?.toLocaleString()}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -863,7 +863,7 @@ const FeeManagement = () => {
                                 : 'text-amber-600'
                             }`}
                           >
-                            ${remainingAmt?.toLocaleString()}
+                            ₹{remainingAmt?.toLocaleString()}
                           </span>
                         </td>
 
@@ -1058,7 +1058,7 @@ const FeeManagement = () => {
             {/* Amount & Due Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Total Amount ($) *</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Total Amount (₹) *</label>
                 <div className="relative">
                   <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
@@ -1175,7 +1175,7 @@ const FeeManagement = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Total Amount ($)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Total Amount (₹)</label>
                 <div className="relative">
                   <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
@@ -1188,7 +1188,7 @@ const FeeManagement = () => {
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400">Cannot be less than paid (${selectedFee.paidAmount || 0})</span>
+                <span className="text-[10px] text-slate-400">Cannot be less than paid (₹{selectedFee.paidAmount || 0})</span>
               </div>
 
               <div>
@@ -1274,19 +1274,19 @@ const FeeManagement = () => {
               <div className="p-3.5 rounded-2xl bg-white border border-slate-200">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Total Amount</span>
                 <p className="text-lg font-extrabold text-slate-900 mt-1">
-                  ${(selectedFee.amount !== undefined ? selectedFee.amount : selectedFee.totalAmount)?.toLocaleString()}
+                  ₹{(selectedFee.amount !== undefined ? selectedFee.amount : selectedFee.totalAmount)?.toLocaleString()}
                 </p>
               </div>
               <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
                 <span className="text-[10px] font-bold text-emerald-700 uppercase">Paid Amount</span>
                 <p className="text-lg font-extrabold text-emerald-800 mt-1">
-                  ${(selectedFee.paidAmount || 0).toLocaleString()}
+                  ₹{(selectedFee.paidAmount || 0).toLocaleString()}
                 </p>
               </div>
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-100">
                 <span className="text-[10px] font-bold text-amber-700 uppercase">Remaining Due</span>
                 <p className="text-lg font-extrabold text-amber-800 mt-1">
-                  ${(selectedFee.remainingAmount !== undefined
+                  ₹{(selectedFee.remainingAmount !== undefined
                     ? selectedFee.remainingAmount
                     : Math.max(0, (selectedFee.amount || selectedFee.totalAmount) - (selectedFee.paidAmount || 0))
                   )?.toLocaleString()}
@@ -1349,7 +1349,7 @@ const FeeManagement = () => {
                             {new Date(p.paymentDate || p.createdAt).toLocaleDateString()}
                           </td>
                           <td className="py-2.5 px-3 font-extrabold text-emerald-600">
-                            ${p.amount}
+                            ₹{p.amount}
                           </td>
                           <td className="py-2.5 px-3">{p.paymentMethod}</td>
                           <td className="py-2.5 px-3 text-right">
@@ -1426,17 +1426,17 @@ const FeeManagement = () => {
               <div className="flex justify-between">
                 <span className="text-emerald-800 font-medium">Total Invoiced:</span>
                 <span className="font-bold text-slate-800">
-                  ${(selectedFee.amount !== undefined ? selectedFee.amount : selectedFee.totalAmount)?.toLocaleString()}
+                  ₹{(selectedFee.amount !== undefined ? selectedFee.amount : selectedFee.totalAmount)?.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-emerald-800 font-medium">Already Paid:</span>
-                <span className="font-bold text-emerald-700">${(selectedFee.paidAmount || 0).toLocaleString()}</span>
+                <span className="font-bold text-emerald-700">₹{(selectedFee.paidAmount || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-emerald-200">
                 <span className="text-emerald-900 font-bold">Outstanding Remaining:</span>
                 <span className="font-extrabold text-emerald-800 text-sm">
-                  ${(selectedFee.remainingAmount !== undefined
+                  ₹{(selectedFee.remainingAmount !== undefined
                     ? selectedFee.remainingAmount
                     : Math.max(0, (selectedFee.amount || selectedFee.totalAmount) - (selectedFee.paidAmount || 0))
                   )?.toLocaleString()}
@@ -1465,7 +1465,7 @@ const FeeManagement = () => {
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Amount ($) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Amount (₹) *</label>
               <div className="relative">
                 <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -1556,7 +1556,7 @@ const FeeManagement = () => {
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{formSubmitting ? 'Recording...' : `Record $${payForm.amount || 0}`}</span>
+                <span>{formSubmitting ? 'Recording...' : `Record ₹${payForm.amount || 0}`}</span>
               </button>
             </div>
           </form>
@@ -1624,7 +1624,7 @@ const FeeManagement = () => {
               <div className="flex justify-between pt-2 border-t border-slate-200">
                 <span className="text-sm font-bold text-slate-800">Amount Paid:</span>
                 <span className="text-xl font-extrabold text-emerald-600">
-                  ${selectedReceipt.amount?.toLocaleString()}
+                  ₹{selectedReceipt.amount?.toLocaleString()}
                 </span>
               </div>
             </div>

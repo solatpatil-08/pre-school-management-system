@@ -175,19 +175,19 @@ const Reports = () => {
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-card">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Billed</p>
                   <h3 className="text-3xl font-extrabold text-slate-900 mt-1">
-                    ${(feesData.summary?.totalBilled || 0).toLocaleString()}
+                    ₹{(feesData.summary?.totalBilled || 0).toLocaleString()}
                   </h3>
                 </div>
                 <div className="bg-emerald-50/60 rounded-2xl p-5 border border-emerald-100 shadow-card">
                   <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Collected</p>
                   <h3 className="text-3xl font-extrabold text-emerald-800 mt-1">
-                    ${(feesData.summary?.totalCollected || 0).toLocaleString()}
+                    ₹{(feesData.summary?.totalCollected || 0).toLocaleString()}
                   </h3>
                 </div>
                 <div className="bg-amber-50/60 rounded-2xl p-5 border border-amber-100 shadow-card">
                   <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Outstanding</p>
                   <h3 className="text-3xl font-extrabold text-amber-800 mt-1">
-                    ${(feesData.summary?.pendingBalance || 0).toLocaleString()}
+                    ₹{(feesData.summary?.pendingBalance || 0).toLocaleString()}
                   </h3>
                 </div>
                 <div className="bg-indigo-50/60 rounded-2xl p-5 border border-indigo-100 shadow-card">
@@ -207,9 +207,9 @@ const Reports = () => {
                       <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase text-[11px] tracking-wider">
                         <th className="pb-3 font-semibold">Fee Type</th>
                         <th className="pb-3 font-semibold">Invoices Issued</th>
-                        <th className="pb-3 font-semibold">Billed ($)</th>
-                        <th className="pb-3 font-semibold">Collected ($)</th>
-                        <th className="pb-3 font-semibold">Pending ($)</th>
+                        <th className="pb-3 font-semibold">Billed (₹)</th>
+                        <th className="pb-3 font-semibold">Collected (₹)</th>
+                        <th className="pb-3 font-semibold">Pending (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -217,9 +217,9 @@ const Reports = () => {
                         <tr key={item.type} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 font-bold text-slate-800">{item.type}</td>
                           <td className="py-3.5 text-slate-600 font-medium">{item.count}</td>
-                          <td className="py-3.5 font-semibold text-slate-900">${item.billed.toLocaleString()}</td>
-                          <td className="py-3.5 font-bold text-emerald-600">${item.collected.toLocaleString()}</td>
-                          <td className="py-3.5 font-bold text-amber-600">${item.pending.toLocaleString()}</td>
+                          <td className="py-3.5 font-semibold text-slate-900">₹{item.billed.toLocaleString()}</td>
+                          <td className="py-3.5 font-bold text-emerald-600">₹{item.collected.toLocaleString()}</td>
+                          <td className="py-3.5 font-bold text-amber-600">₹{item.pending.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

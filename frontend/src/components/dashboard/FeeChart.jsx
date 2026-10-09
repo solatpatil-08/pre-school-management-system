@@ -38,7 +38,7 @@ const FeeChart = ({ data = {} }) => {
         {/* Multi-segment Progress Bar */}
         <div className="my-4">
           <div className="flex justify-between text-xs font-bold mb-1.5">
-            <span className="text-slate-700">Total Billed: ${totalExpected.toLocaleString()}</span>
+            <span className="text-slate-700">Total Billed: ₹{totalExpected.toLocaleString('en-IN')}</span>
             <span className="text-emerald-700 font-extrabold">{collectedPct}% Collected</span>
           </div>
 
@@ -46,17 +46,17 @@ const FeeChart = ({ data = {} }) => {
             <div
               className="bg-emerald-500 h-full transition-all duration-500"
               style={{ width: `${collectedPct}%` }}
-              title={`Collected: $${totalCollected} (${collectedPct}%)`}
+              title={`Collected: ₹${totalCollected} (${collectedPct}%)`}
             />
             <div
               className="bg-amber-400 h-full transition-all duration-500"
               style={{ width: `${pendingPct}%` }}
-              title={`Pending: $${totalPending} (${pendingPct}%)`}
+              title={`Pending: ₹${totalPending} (${pendingPct}%)`}
             />
             <div
               className="bg-rose-500 h-full transition-all duration-500"
               style={{ width: `${overduePct}%` }}
-              title={`Overdue: $${totalOverdue} (${overduePct}%)`}
+              title={`Overdue: ₹${totalOverdue} (${overduePct}%)`}
             />
           </div>
 
@@ -64,15 +64,15 @@ const FeeChart = ({ data = {} }) => {
           <div className="flex items-center justify-between text-[11px] font-semibold mt-2.5 text-slate-500">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span>Collected (${totalCollected.toLocaleString()})</span>
+              <span>Collected (₹{totalCollected.toLocaleString('en-IN')})</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span>Pending (${totalPending.toLocaleString()})</span>
+              <span>Pending (₹{totalPending.toLocaleString('en-IN')})</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span>Overdue (${totalOverdue.toLocaleString()})</span>
+              <span>Overdue (₹{totalOverdue.toLocaleString('en-IN')})</span>
             </div>
           </div>
         </div>
@@ -82,21 +82,21 @@ const FeeChart = ({ data = {} }) => {
           <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-center">
             <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Collected</span>
             <p className="text-lg sm:text-xl font-black text-emerald-800 mt-0.5">
-              ${totalCollected.toLocaleString()}
+              ₹{totalCollected.toLocaleString('en-IN')}
             </p>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100 text-center">
             <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Pending</span>
             <p className="text-lg sm:text-xl font-black text-amber-800 mt-0.5">
-              ${totalPending.toLocaleString()}
+              ₹{totalPending.toLocaleString('en-IN')}
             </p>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-100 text-center">
             <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Overdue</span>
             <p className="text-lg sm:text-xl font-black text-rose-800 mt-0.5">
-              ${totalOverdue.toLocaleString()}
+              ₹{totalOverdue.toLocaleString('en-IN')}
             </p>
           </div>
         </div>
@@ -113,8 +113,8 @@ const FeeChart = ({ data = {} }) => {
                   key={pm.method}
                   className="px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-[11px] font-semibold text-slate-700 flex items-center gap-1.5"
                 >
-                  <DollarSign className="w-3 h-3 text-emerald-600" />
-                  {pm.method}: <strong className="text-slate-900">${pm.amount?.toLocaleString()}</strong>
+                  <CreditCard className="w-3 h-3 text-emerald-600" />
+                  {pm.method}: <strong className="text-slate-900">₹{pm.amount?.toLocaleString('en-IN')}</strong>
                   <span className="text-slate-400 text-[10px]">({pm.count})</span>
                 </span>
               ))}

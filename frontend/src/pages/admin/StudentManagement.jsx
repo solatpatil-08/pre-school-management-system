@@ -25,6 +25,11 @@ import {
   X,
   User,
   ShieldAlert,
+  CreditCard,
+  CheckCircle2,
+  Clock,
+  Receipt,
+  Users,
 } from 'lucide-react';
 
 const StudentManagement = () => {
@@ -53,6 +58,53 @@ const StudentManagement = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [activeStudent, setActiveStudent] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formTab, setFormTab] = useState('student'); // 'student', 'parent', 'fees'
+
+  // Initial Parent / Guardian information (Dedicated section - no dropdown)
+  const initialParentData = {
+    fatherName: '',
+    fatherPhone: '',
+    fatherEmail: '',
+    fatherOccupation: '',
+    fatherAadhaar: '',
+    fatherAddress: '',
+    fatherCity: 'Pune',
+    fatherState: 'Maharashtra',
+    fatherPincode: '411038',
+    fatherProfilePhoto: '',
+    motherName: '',
+    motherPhone: '',
+    motherEmail: '',
+    motherOccupation: '',
+    motherAddress: '',
+    motherCity: 'Pune',
+    motherState: 'Maharashtra',
+    motherPincode: '411038',
+    motherProfilePhoto: '',
+    guardianName: '',
+    guardianRelationship: 'Guardian',
+    guardianPhone: '',
+    guardianEmail: '',
+    guardianAddress: '',
+  };
+
+  // Initial Fee structure
+  const initialFeeData = {
+    annualFees: 48000,
+    admissionFees: 12000,
+    tuitionFees: 30000,
+    otherFees: 6000,
+    totalPayableFees: 48000,
+    amountPaid: 0,
+    pendingAmount: 48000,
+    paymentDate: new Date().toISOString().split('T')[0],
+    paymentMode: 'Cash',
+    paymentStatus: 'Pending',
+    receiptNumber: '',
+    transactionId: '',
+    nextPaymentDueDate: '',
+    remarks: '',
+  };
 
   // Form initial state
   const initialForm = {
@@ -63,18 +115,63 @@ const StudentManagement = () => {
     gender: 'Female',
     admissionDate: new Date().toISOString().split('T')[0],
     class: '',
-    parent: '',
     phone: '',
     email: '',
     address: '',
+    city: 'Pune',
+    state: 'Maharashtra',
+    pincode: '411038',
+    aadhaarNumber: '',
     emergencyContact: { name: '', phone: '', relationship: 'Parent' },
     medicalNotes: 'None',
     allergies: 'None',
     bloodGroup: 'Unknown',
     profilePhoto: '',
     status: 'Active',
+    parentData: initialParentData,
+    feeData: initialFeeData,
   };
   const [formData, setFormData] = useState(initialForm);
+
+  // Helper for Fee updates and automatic pending / status calculations
+  const updateFeeField = (field, value) => {
+    setFormData((prev) => {
+      const current = { ...prev.feeData };
+      let newFee = { ...current, [field]: value };
+
+      const admission = Math.max(0, Number(field === 'admissionFees' ? value : newFee.admissionFees) || 0);
+      const tuition = Math.max(0, Number(field === 'tuitionFees' ? value : newFee.tuitionFees) || 0);
+      const other = Math.max(0, Number(field === 'otherFees' ? value : newFee.otherFees) || 0);
+
+      if (field === 'admissionFees' || field === 'tuitionFees' || field === 'otherFees') {
+        const sum = admission + tuition + other;
+        newFee.annualFees = sum;
+        newFee.totalPayableFees = sum;
+      }
+
+      let totalPayable = Number(field === 'totalPayableFees' ? value : newFee.totalPayableFees);
+      if (isNaN(totalPayable) || totalPayable < 0) totalPayable = 0;
+      newFee.totalPayableFees = totalPayable;
+
+      let paid = Number(field === 'amountPaid' ? value : newFee.amountPaid);
+      if (isNaN(paid) || paid < 0) paid = 0;
+      if (paid > totalPayable) paid = totalPayable;
+      newFee.amountPaid = paid;
+
+      const pending = Math.max(0, totalPayable - paid);
+      newFee.pendingAmount = pending;
+
+      if (paid >= totalPayable && totalPayable > 0) {
+        newFee.paymentStatus = 'Paid';
+      } else if (paid > 0) {
+        newFee.paymentStatus = 'Partially Paid';
+      } else {
+        newFee.paymentStatus = 'Pending';
+      }
+
+      return { ...prev, feeData: newFee };
+    });
+  };
 
   const { showToast } = useToast();
 
@@ -164,6 +261,7 @@ const StudentManagement = () => {
   // Modal open handlers
   const handleOpenAdd = () => {
     setActiveStudent(null);
+    setFormTab('student');
     setFormData({
       ...initialForm,
       class: classes[0]?._id || '',
@@ -173,6 +271,10 @@ const StudentManagement = () => {
 
   const handleOpenEdit = (student) => {
     setActiveStudent(student);
+    setFormTab('student');
+    const existingFee = (student.fees && student.fees[0]) || null;
+    const parent = student.parent || null;
+
     setFormData({
       studentId: student.studentId || '',
       firstName: student.firstName || '',
@@ -183,10 +285,13 @@ const StudentManagement = () => {
         ? student.admissionDate.split('T')[0]
         : new Date().toISOString().split('T')[0],
       class: student.class?._id || student.class || '',
-      parent: student.parent?._id || student.parent || '',
       phone: student.phone || student.contactNumber || '',
       email: student.email || '',
       address: student.address || '',
+      city: student.city || 'Pune',
+      state: student.state || 'Maharashtra',
+      pincode: student.pincode || '411038',
+      aadhaarNumber: student.aadhaarNumber || '',
       emergencyContact: {
         name: student.emergencyContact?.name || '',
         phone: student.emergencyContact?.phone || '',
@@ -197,6 +302,48 @@ const StudentManagement = () => {
       bloodGroup: student.bloodGroup || 'Unknown',
       profilePhoto: student.profilePhoto || '',
       status: student.status || 'Active',
+      parentData: {
+        fatherName: parent?.firstName ? `${parent.firstName} ${parent.lastName || ''}`.trim() : '',
+        fatherPhone: parent?.phone || '',
+        fatherEmail: parent?.email || '',
+        fatherOccupation: parent?.occupation || '',
+        fatherAadhaar: parent?.aadhaarNumber || '',
+        fatherAddress: parent?.address || '',
+        fatherCity: parent?.city || 'Pune',
+        fatherState: parent?.state || 'Maharashtra',
+        fatherPincode: parent?.pincode || '',
+        fatherProfilePhoto: parent?.profilePhoto || '',
+        motherName: parent?.motherInfo?.name || '',
+        motherPhone: parent?.motherInfo?.phone || '',
+        motherEmail: parent?.motherInfo?.email || '',
+        motherOccupation: parent?.motherInfo?.occupation || '',
+        motherAddress: parent?.motherInfo?.address || '',
+        motherCity: parent?.motherInfo?.city || 'Pune',
+        motherState: parent?.motherInfo?.state || 'Maharashtra',
+        motherPincode: parent?.motherInfo?.pincode || '',
+        motherProfilePhoto: parent?.motherInfo?.profilePhoto || '',
+        guardianName: parent?.guardianInfo?.name || '',
+        guardianRelationship: parent?.guardianInfo?.relationship || 'Guardian',
+        guardianPhone: parent?.guardianInfo?.phone || '',
+        guardianEmail: parent?.guardianInfo?.email || '',
+        guardianAddress: parent?.guardianInfo?.address || '',
+      },
+      feeData: existingFee ? {
+        annualFees: existingFee.annualFees || existingFee.amount || 48000,
+        admissionFees: existingFee.admissionFees || 12000,
+        tuitionFees: existingFee.tuitionFees || 30000,
+        otherFees: existingFee.otherFees || 6000,
+        totalPayableFees: existingFee.totalPayableFees || existingFee.amount || 48000,
+        amountPaid: existingFee.paidAmount || 0,
+        pendingAmount: existingFee.remainingAmount !== undefined ? existingFee.remainingAmount : Math.max(0, (existingFee.amount || 48000) - (existingFee.paidAmount || 0)),
+        paymentDate: existingFee.paymentDate ? existingFee.paymentDate.split('T')[0] : new Date().toISOString().split('T')[0],
+        paymentMode: existingFee.paymentMode || 'Cash',
+        paymentStatus: existingFee.status === 'PAID' ? 'Paid' : existingFee.status === 'PARTIAL' ? 'Partially Paid' : 'Pending',
+        receiptNumber: existingFee.receiptNumber || '',
+        transactionId: existingFee.transactionId || '',
+        nextPaymentDueDate: existingFee.nextPaymentDueDate ? existingFee.nextPaymentDueDate.split('T')[0] : '',
+        remarks: existingFee.remarks || '',
+      } : initialFeeData,
     });
     setIsAddEditOpen(true);
   };
@@ -223,8 +370,23 @@ const StudentManagement = () => {
   const handleSaveStudent = async (e) => {
     e.preventDefault();
     if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.dateOfBirth || !formData.class) {
-      showToast('Please fill in all mandatory fields (*)', 'warning');
+      showToast('Please fill in all mandatory student fields (*)', 'warning');
       return;
+    }
+
+    // Fee validations
+    const fee = formData.feeData;
+    if (fee) {
+      const paid = Number(fee.amountPaid) || 0;
+      const total = Number(fee.totalPayableFees) || 0;
+      if (paid > total) {
+        showToast('Amount paid cannot be greater than Total Payable Fees', 'warning');
+        return;
+      }
+      if (paid < 0 || total < 0 || Number(fee.admissionFees) < 0 || Number(fee.tuitionFees) < 0 || Number(fee.otherFees) < 0) {
+        showToast('Fee amounts cannot be negative values', 'warning');
+        return;
+      }
     }
 
     try {
@@ -233,7 +395,8 @@ const StudentManagement = () => {
         ...formData,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        parent: formData.parent || null,
+        parentData: formData.parentData,
+        feeData: formData.feeData,
       };
 
       if (activeStudent) {
@@ -245,7 +408,7 @@ const StudentManagement = () => {
       } else {
         // Enroll new student
         await api.post('/students', payload);
-        showToast('Student enrolled successfully', 'success');
+        showToast('Student enrolled successfully with parent and fees records', 'success');
         setIsAddEditOpen(false);
         fetchStudents(1);
       }
@@ -453,6 +616,7 @@ const StudentManagement = () => {
                   <th className="py-3.5 px-4">Parent / Guardian</th>
                   <th className="py-3.5 px-4">Gender</th>
                   <th className="py-3.5 px-4">Health & Allergies</th>
+                  <th className="py-3.5 px-4">Fees & Balance</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
@@ -543,6 +707,21 @@ const StudentManagement = () => {
                         )}
                       </td>
 
+                      {/* Fees & Balance */}
+                      <td className="py-3.5 px-4">
+                        <div>
+                          <Badge
+                            variant={st.feeStatus === 'PAID' ? 'Active' : st.feeStatus === 'PARTIAL' ? 'Pending' : 'Suspended'}
+                            text={st.feeStatus || 'PENDING'}
+                          />
+                          <span className="text-[11px] font-semibold text-slate-700 block mt-0.5">
+                            {st.feePending > 0
+                              ? `₹${Number(st.feePending).toLocaleString('en-IN')} Due`
+                              : '₹0 Balance'}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Status */}
                       <td className="py-3.5 px-4">
                         <Badge variant={st.status} text={st.status} />
@@ -596,340 +775,989 @@ const StudentManagement = () => {
         isOpen={isAddEditOpen}
         onClose={() => setIsAddEditOpen(false)}
         title={activeStudent ? 'Edit Student Details' : 'Enroll New Student'}
-        subtitle="Complete the student registration with accurate personal, contact, and healthcare info"
-        maxWidth="max-w-3xl"
+        subtitle="Complete enrollment with Indian student details, parent/guardian info, and itemized fee structure"
+        maxWidth="max-w-4xl"
       >
-        <form onSubmit={handleSaveStudent} className="space-y-5">
-          {/* Section: Personal Info */}
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-primary-500" />
-              <span>Personal Information</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  First Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="e.g. Leo"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Last Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="e.g. Doe"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Date of Birth *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Gender *
-                </label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Blood Group
-                </label>
-                <select
-                  value={formData.bloodGroup}
-                  onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                >
-                  <option value="Unknown">Unknown</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Academic & Enrollment */}
-          <div className="pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-              <GraduationCap className="w-3.5 h-3.5 text-primary-500" />
-              <span>Enrollment & Class</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Student ID <span className="font-normal text-slate-400 lowercase">(auto if blank)</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.studentId}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="e.g. SKA-2026-001"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Assign Class *
-                </label>
-                <select
-                  required
-                  value={formData.class}
-                  onChange={(e) => setFormData({ ...formData, class: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                >
-                  <option value="">Select a Class</option>
-                  {classes.map((cls) => (
-                    <option key={cls._id} value={cls._id}>
-                      {cls.name} ({cls.section})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="Graduated">Graduated</option>
-                  <option value="Suspended">Suspended</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Admission Date
-                </label>
-                <input
-                  type="date"
-                  value={formData.admissionDate}
-                  onChange={(e) => setFormData({ ...formData, admissionDate: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Profile Photo URL
-                </label>
-                <input
-                  type="url"
-                  value={formData.profilePhoto}
-                  onChange={(e) => setFormData({ ...formData, profilePhoto: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="https://images.unsplash.com/..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Guardian & Contact Details */}
-          <div className="pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-              <Baby className="w-3.5 h-3.5 text-primary-500" />
-              <span>Guardian & Contact Information</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Assign Parent Profile
-                </label>
-                <select
-                  value={formData.parent}
-                  onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                >
-                  <option value="">None / Walk-in</option>
-                  {parents.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.firstName} {p.lastName} ({p.relationship || 'Parent'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Student/Family Phone
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="+1 (555) 000-0000"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Student/Family Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="family@example.com"
-                />
-              </div>
-            </div>
-
-            <div className="mt-3">
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Home Address
-              </label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                placeholder="Street address, City, State, Zip"
-              />
-            </div>
-          </div>
-
-          {/* Section: Medical & Healthcare */}
-          <div className="pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-              <Heart className="w-3.5 h-3.5 text-rose-500" />
-              <span>Medical & Health Requirements</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Known Allergies
-                </label>
-                <input
-                  type="text"
-                  value={formData.allergies}
-                  onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="e.g. Peanuts, Dairy, Strawberries (or None)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Medical & Care Notes
-                </label>
-                <input
-                  type="text"
-                  value={formData.medicalNotes}
-                  onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
-                  placeholder="e.g. Mild asthma, carries pediatric inhaler"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Emergency Contact */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-            <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-              <span>Emergency Contact Details</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                placeholder="Full Contact Name"
-                value={formData.emergencyContact.name}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    emergencyContact: { ...formData.emergencyContact, name: e.target.value },
-                  })
-                }
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                value={formData.emergencyContact.phone}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    emergencyContact: { ...formData.emergencyContact, phone: e.target.value },
-                  })
-                }
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
-              />
-              <input
-                type="text"
-                placeholder="Relationship (e.g. Aunt, Grandparent)"
-                value={formData.emergencyContact.relationship}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    emergencyContact: {
-                      ...formData.emergencyContact,
-                      relationship: e.target.value,
-                    },
-                  })
-                }
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <form onSubmit={handleSaveStudent} className="space-y-4">
+          {/* Modal Step / Tab Selector */}
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setIsAddEditOpen(false)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              onClick={() => setFormTab('student')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                formTab === 'student'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/20'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+              }`}
             >
-              Cancel
+              <User className="w-3.5 h-3.5" />
+              <span>1. Student Profile</span>
             </button>
             <button
-              type="submit"
-              disabled={formSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-md shadow-primary-600/20 disabled:opacity-50 transition-all flex items-center gap-1.5"
+              type="button"
+              onClick={() => setFormTab('parent')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                formTab === 'parent'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/20'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+              }`}
             >
-              {formSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-              <span>{formSubmitting ? 'Saving...' : activeStudent ? 'Save Changes' : 'Enroll Student'}</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>2. Parent / Guardian Info</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setFormTab('fees')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                formTab === 'fees'
+                  ? 'bg-primary-600 text-white shadow-sm shadow-primary-600/20'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>3. Fees & Payment</span>
+            </button>
+          </div>
+
+          {/* TAB 1: STUDENT PROFILE */}
+          {formTab === 'student' && (
+            <div className="space-y-4 animate-fade-in">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-primary-500" />
+                  <span>Personal Information</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="e.g. Aarav"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="e.g. Patil"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Date of Birth *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Gender *
+                    </label>
+                    <select
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Blood Group
+                    </label>
+                    <select
+                      value={formData.bloodGroup}
+                      onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    >
+                      <option value="Unknown">Unknown</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Academic & Enrollment */}
+              <div className="pt-2 border-t border-slate-100">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-primary-500" />
+                  <span>Enrollment & Class Details</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Student ID <span className="font-normal text-slate-400 lowercase">(auto if blank)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.studentId}
+                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="e.g. SKA-2026-001"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Assign Class *
+                    </label>
+                    <select
+                      required
+                      value={formData.class}
+                      onChange={(e) => setFormData({ ...formData, class: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    >
+                      <option value="">Select a Class</option>
+                      {classes.map((cls) => (
+                        <option key={cls._id} value={cls._id}>
+                          {cls.name} ({cls.section})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Graduated">Graduated</option>
+                      <option value="Suspended">Suspended</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Admission Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.admissionDate}
+                      onChange={(e) => setFormData({ ...formData, admissionDate: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Student Profile Photo URL
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.profilePhoto}
+                      onChange={(e) => setFormData({ ...formData, profilePhoto: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Medical & Emergency Info */}
+              <div className="pt-2 border-t border-slate-100">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                  <Heart className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Healthcare & Emergency Contact</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Known Allergies
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.allergies}
+                      onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="e.g. Peanuts, Dust, Dairy (or None)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Medical / Care Notes
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.medicalNotes}
+                      onChange={(e) => setFormData({ ...formData, medicalNotes: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                      placeholder="e.g. Mild asthma, carries inhaler"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-0.5">Emergency Contact Name</label>
+                    <input
+                      type="text"
+                      placeholder="Full Contact Name"
+                      value={formData.emergencyContact.name}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          emergencyContact: { ...formData.emergencyContact, name: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-0.5">Emergency Phone</label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={formData.emergencyContact.phone}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          emergencyContact: { ...formData.emergencyContact, phone: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-0.5">Relationship</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Grandparent, Uncle"
+                      value={formData.emergencyContact.relationship}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          emergencyContact: {
+                            ...formData.emergencyContact,
+                            relationship: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: PARENT / GUARDIAN INFORMATION (NO DROPDOWN) */}
+          {formTab === 'parent' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="bg-primary-50/50 p-3 rounded-2xl border border-primary-100/70 text-xs text-primary-800 flex items-center justify-between">
+                <span>
+                  <strong>Dedicated Parent Information:</strong> Enter parent details below. A secure parent account will be automatically configured for login.
+                </span>
+                <span className="text-[11px] font-bold text-primary-600 bg-white px-2 py-0.5 rounded-full border border-primary-200">
+                  No Dropdown Required
+                </span>
+              </div>
+
+              {/* Sub-section: Father / Parent 1 */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Father / Parent 1 (Primary Contact)</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherName: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Rahul Patil"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.parentData.fatherPhone}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherPhone: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. 9822012345"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.parentData.fatherEmail}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherEmail: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. rahul.parent@preschool.demo"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Occupation
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherOccupation}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherOccupation: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Software Architect"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Aadhaar / ID Card
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherAadhaar}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherAadhaar: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. 4521 8902 3412"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Profile Photo URL
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.parentData.fatherProfilePhoto}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherProfilePhoto: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Residential Address
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherAddress}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherAddress: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. 402, Mayur Residency, Kothrud"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherCity}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherCity: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      PIN Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.fatherPincode}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, fatherPincode: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-section: Mother / Parent 2 */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-pink-600" />
+                  <span>Mother / Parent 2</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.motherName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, motherName: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Priya Patil"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.parentData.motherPhone}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, motherPhone: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. 9822098765"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.parentData.motherEmail}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, motherEmail: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. priya.patil@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Occupation
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.motherOccupation}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, motherOccupation: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Dental Surgeon"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-section: Guardian (Optional) */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Baby className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Guardian (Optional)</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Guardian Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.guardianName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, guardianName: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Suresh Patil"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Relationship
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.parentData.guardianRelationship}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, guardianRelationship: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="e.g. Uncle / Grandfather"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.parentData.guardianPhone}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, guardianPhone: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.parentData.guardianEmail}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          parentData: { ...formData.parentData, guardianEmail: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: FEES & PAYMENT MANAGEMENT */}
+          {formTab === 'fees' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Fee KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+                  <span className="text-slate-500 font-medium block">Total Payable Fees</span>
+                  <p className="text-lg font-extrabold text-slate-900 mt-0.5">
+                    ₹{Number(formData.feeData.totalPayableFees).toLocaleString('en-IN')}
+                  </p>
+                  <span className="text-[10px] text-slate-400">Annual Gross Amount</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs">
+                  <span className="text-emerald-700 font-medium block">Amount Paid</span>
+                  <p className="text-lg font-extrabold text-emerald-800 mt-0.5">
+                    ₹{Number(formData.feeData.amountPaid).toLocaleString('en-IN')}
+                  </p>
+                  <span className="text-[10px] text-emerald-600 font-semibold">Collected at Enrollment</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs">
+                  <span className="text-amber-800 font-medium block">Pending Balance</span>
+                  <p className="text-lg font-extrabold text-amber-900 mt-0.5">
+                    ₹{Number(formData.feeData.pendingAmount).toLocaleString('en-IN')}
+                  </p>
+                  <span className="text-[10px] text-amber-700 font-semibold">Auto-calculated</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200 text-xs">
+                  <span className="text-indigo-700 font-medium block">Payment Status</span>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        formData.feeData.paymentStatus === 'Paid'
+                          ? 'Active'
+                          : formData.feeData.paymentStatus === 'Partially Paid'
+                          ? 'Pending'
+                          : 'Suspended'
+                      }
+                      text={formData.feeData.paymentStatus}
+                    />
+                  </div>
+                  <span className="text-[10px] text-indigo-600 block mt-1">Automatic sync</span>
+                </div>
+              </div>
+
+              {/* Itemized Fee Breakdown Inputs */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Itemized Fee Components</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Total Course / Annual Fees (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.feeData.annualFees}
+                      onChange={(e) => updateFeeField('annualFees', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="48000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Admission Fees (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.feeData.admissionFees}
+                      onChange={(e) => updateFeeField('admissionFees', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="12000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Tuition Fees (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.feeData.tuitionFees}
+                      onChange={(e) => updateFeeField('tuitionFees', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="30000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Other / Activity Fees (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.feeData.otherFees}
+                      onChange={(e) => updateFeeField('otherFees', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="6000"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200/60">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Total Payable Fees (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.feeData.totalPayableFees}
+                      onChange={(e) => updateFeeField('totalPayableFees', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-primary-700 focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Amount Paid (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={formData.feeData.totalPayableFees}
+                      value={formData.feeData.amountPaid}
+                      onChange={(e) => updateFeeField('amountPaid', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-emerald-700 focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Pending Balance (₹) <span className="text-slate-400 font-normal lowercase">(auto)</span>
+                    </label>
+                    <input
+                      type="number"
+                      readOnly
+                      value={formData.feeData.pendingAmount}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold text-amber-800 bg-amber-50/50 cursor-not-allowed focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Payment Mode & Transaction Details</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Payment Mode *
+                    </label>
+                    <select
+                      value={formData.feeData.paymentMode}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, paymentMode: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Card">Card</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Payment Status *
+                    </label>
+                    <select
+                      value={formData.feeData.paymentStatus}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, paymentStatus: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    >
+                      <option value="Paid">Paid</option>
+                      <option value="Partially Paid">Partially Paid</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Payment Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.feeData.paymentDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, paymentDate: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Receipt Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.feeData.receiptNumber}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, receiptNumber: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white font-mono"
+                      placeholder="e.g. REC-2026-1002"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Transaction ID / UTR
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.feeData.transactionId}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, transactionId: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white font-mono"
+                      placeholder="e.g. UPI-2026-98124"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Next Payment Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.feeData.nextPaymentDueDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          feeData: { ...formData.feeData, nextPaymentDueDate: e.target.value },
+                        })
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Optional Fee Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.feeData.remarks}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        feeData: { ...formData.feeData, remarks: e.target.value },
+                      })
+                    }
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-primary-500/20 focus:outline-none bg-white"
+                    placeholder="e.g. Term 1 paid in full via UPI; Next installment due before term 2"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Action Buttons */}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 flex-wrap">
+            <div className="flex items-center gap-2">
+              {formTab === 'parent' && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('student')}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  ← Back to Student Profile
+                </button>
+              )}
+              {formTab === 'fees' && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('parent')}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  ← Back to Parent Info
+                </button>
+              )}
+              {formTab === 'student' && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('parent')}
+                  className="px-3.5 py-2 rounded-xl border border-primary-200 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors"
+                >
+                  Next: Parent Info →
+                </button>
+              )}
+              {formTab === 'parent' && (
+                <button
+                  type="button"
+                  onClick={() => setFormTab('fees')}
+                  className="px-3.5 py-2 rounded-xl border border-primary-200 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors"
+                >
+                  Next: Fee Details →
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsAddEditOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={formSubmitting}
+                className="px-5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-md shadow-primary-600/20 disabled:opacity-50 transition-all flex items-center gap-1.5"
+              >
+                {formSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {formSubmitting
+                    ? 'Saving...'
+                    : activeStudent
+                    ? 'Save Changes'
+                    : 'Enroll Student with Fees'}
+                </span>
+              </button>
+            </div>
           </div>
         </form>
       </Modal>
@@ -1023,41 +1851,193 @@ const StudentManagement = () => {
             </div>
 
             {/* Parent / Guardian Information */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-2">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-3">
               <span className="font-bold text-slate-800 block flex items-center gap-1.5">
-                <Baby className="w-3.5 h-3.5 text-primary-600" />
+                <Users className="w-3.5 h-3.5 text-primary-600" />
                 <span>Parent / Guardian Profile</span>
               </span>
               {activeStudent.parent ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
-                  <div>
-                    <span className="text-slate-400 text-[11px] block">Name & Relation</span>
-                    <p className="font-semibold text-slate-900">
-                      {activeStudent.parent.firstName} {activeStudent.parent.lastName} (
-                      {activeStudent.parent.relationship || 'Parent'})
-                    </p>
+                <div className="space-y-3">
+                  {/* Father / Primary Parent */}
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/70">
+                    <span className="text-[11px] font-bold text-primary-700 uppercase tracking-wider block mb-1">
+                      Father / Parent 1 ({activeStudent.parent.relationship || 'Primary'})
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700">
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">Name</span>
+                        <p className="font-semibold text-slate-900">
+                          {activeStudent.parent.firstName} {activeStudent.parent.lastName}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">Phone</span>
+                        <p className="font-semibold text-slate-900 flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-primary-500" />
+                          {activeStudent.parent.phone || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">Email</span>
+                        <p className="font-medium text-slate-700 flex items-center gap-1 truncate">
+                          <Mail className="w-3 h-3 text-slate-400" />
+                          {activeStudent.parent.email || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">Occupation</span>
+                        <p className="text-slate-700">{activeStudent.parent.occupation || 'N/A'}</p>
+                      </div>
+                      {activeStudent.parent.aadhaarNumber && (
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Aadhaar / ID</span>
+                          <p className="font-mono text-slate-700">{activeStudent.parent.aadhaarNumber}</p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">Location</span>
+                        <p className="text-slate-700">
+                          {activeStudent.parent.city || 'Pune'}, {activeStudent.parent.state || 'Maharashtra'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 text-[11px] block">Primary Phone</span>
-                    <p className="font-semibold text-slate-900 flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-primary-500" />
-                      {activeStudent.parent.phone}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-[11px] block">Email Address</span>
-                    <p className="font-medium text-slate-700 flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-slate-400" />
-                      {activeStudent.parent.email || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-[11px] block">Occupation</span>
-                    <p className="text-slate-700">{activeStudent.parent.occupation || 'N/A'}</p>
-                  </div>
+
+                  {/* Mother / Parent 2 */}
+                  {activeStudent.parent.motherInfo?.name && (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200/70">
+                      <span className="text-[11px] font-bold text-pink-700 uppercase tracking-wider block mb-1">
+                        Mother / Parent 2
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700">
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Name</span>
+                          <p className="font-semibold text-slate-900">{activeStudent.parent.motherInfo.name}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Phone</span>
+                          <p className="font-semibold text-slate-900 flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-pink-500" />
+                            {activeStudent.parent.motherInfo.phone || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Occupation</span>
+                          <p className="text-slate-700">{activeStudent.parent.motherInfo.occupation || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Guardian */}
+                  {activeStudent.parent.guardianInfo?.name && (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200/70">
+                      <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
+                        Guardian ({activeStudent.parent.guardianInfo.relationship || 'Guardian'})
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700">
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Name</span>
+                          <p className="font-semibold text-slate-900">{activeStudent.parent.guardianInfo.name}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Phone</span>
+                          <p className="font-semibold text-slate-900">{activeStudent.parent.guardianInfo.phone || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Email</span>
+                          <p className="text-slate-700">{activeStudent.parent.guardianInfo.email || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-slate-400 italic">No parent profile linked to this record.</p>
+              )}
+            </div>
+
+            {/* Fees & Payment Information */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Student Fee Structure & Payment Status</span>
+                </span>
+                <Badge
+                  variant={
+                    (activeStudent.fees?.[0]?.status || activeStudent.feeStatus) === 'PAID'
+                      ? 'Active'
+                      : (activeStudent.fees?.[0]?.status || activeStudent.feeStatus) === 'PARTIAL'
+                      ? 'Pending'
+                      : 'Suspended'
+                  }
+                  text={activeStudent.fees?.[0]?.status || activeStudent.feeStatus || 'PENDING'}
+                />
+              </div>
+
+              {activeStudent.fees && activeStudent.fees[0] ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Payable</span>
+                      <span className="font-extrabold text-slate-800 text-sm">
+                        ₹{Number(activeStudent.fees[0].totalPayableFees || activeStudent.fees[0].amount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                      <span className="text-[10px] text-emerald-700 uppercase font-semibold block">Amount Paid</span>
+                      <span className="font-extrabold text-emerald-800 text-sm">
+                        ₹{Number(activeStudent.fees[0].paidAmount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200">
+                      <span className="text-[10px] text-amber-700 uppercase font-semibold block">Pending Balance</span>
+                      <span className="font-extrabold text-amber-900 text-sm">
+                        ₹{Number(activeStudent.fees[0].remainingAmount !== undefined ? activeStudent.fees[0].remainingAmount : 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-200">
+                      <span className="text-[10px] text-indigo-700 uppercase font-semibold block">Payment Mode</span>
+                      <span className="font-bold text-indigo-900 text-xs">
+                        {activeStudent.fees[0].paymentMode || 'Cash'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Fee Components</span>
+                      <p className="text-slate-700">
+                        Admission: ₹{activeStudent.fees[0].admissionFees || 0} • Tuition: ₹{activeStudent.fees[0].tuitionFees || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Receipt / Txn ID</span>
+                      <p className="font-mono text-slate-800 font-semibold truncate">
+                        {activeStudent.fees[0].receiptNumber || activeStudent.fees[0].transactionId || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Next Payment Due</span>
+                      <p className="text-slate-800 font-semibold">
+                        {activeStudent.fees[0].nextPaymentDueDate
+                          ? new Date(activeStudent.fees[0].nextPaymentDueDate).toLocaleDateString()
+                          : 'No pending due date'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeStudent.fees[0].remarks && (
+                    <p className="text-[11px] text-slate-500 italic bg-white p-2 rounded-lg border border-slate-100">
+                      Remarks: {activeStudent.fees[0].remarks}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-slate-200/70 text-slate-500 text-center">
+                  <p>No itemized fee statement recorded for this student.</p>
+                </div>
               )}
             </div>
 
