@@ -43,10 +43,52 @@ const parentSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    city: {
+      type: String,
+      trim: true,
+      default: 'Pune',
+    },
+    state: {
+      type: String,
+      trim: true,
+      default: 'Maharashtra',
+    },
+    pincode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    aadhaarNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    profilePhoto: {
+      type: String,
+      default: '',
+    },
     emergencyPhone: {
       type: String,
       trim: true,
       default: '',
+    },
+    motherInfo: {
+      name: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      email: { type: String, default: '' },
+      occupation: { type: String, default: '' },
+      address: { type: String, default: '' },
+      city: { type: String, default: 'Pune' },
+      state: { type: String, default: 'Maharashtra' },
+      pincode: { type: String, default: '' },
+      profilePhoto: { type: String, default: '' },
+    },
+    guardianInfo: {
+      name: { type: String, default: '' },
+      relationship: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      email: { type: String, default: '' },
+      address: { type: String, default: '' },
     },
     children: [
       {
@@ -57,6 +99,8 @@ const parentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 

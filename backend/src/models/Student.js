@@ -62,6 +62,26 @@ const studentSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    city: {
+      type: String,
+      trim: true,
+      default: 'Pune',
+    },
+    state: {
+      type: String,
+      trim: true,
+      default: 'Maharashtra',
+    },
+    pincode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    aadhaarNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     emergencyContact: {
       name: { type: String, default: '' },
       phone: { type: String, default: '' },
@@ -112,6 +132,13 @@ studentSchema.pre('save', function (next) {
 // Virtual for full name
 studentSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
+});
+
+// Virtual for fees records
+studentSchema.virtual('fees', {
+  ref: 'Fee',
+  localField: '_id',
+  foreignField: 'student',
 });
 
 module.exports = mongoose.model('Student', studentSchema);

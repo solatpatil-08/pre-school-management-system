@@ -18,9 +18,62 @@ const feeSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: [0, 'Amount must be positive'],
     },
+    annualFees: {
+      type: Number,
+      default: 0,
+      min: [0, 'Annual fees cannot be negative'],
+    },
+    admissionFees: {
+      type: Number,
+      default: 0,
+      min: [0, 'Admission fees cannot be negative'],
+    },
+    tuitionFees: {
+      type: Number,
+      default: 0,
+      min: [0, 'Tuition fees cannot be negative'],
+    },
+    otherFees: {
+      type: Number,
+      default: 0,
+      min: [0, 'Other fees cannot be negative'],
+    },
+    totalPayableFees: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total payable fees cannot be negative'],
+    },
     dueDate: {
       type: Date,
       required: [true, 'Due date is required'],
+    },
+    nextPaymentDueDate: {
+      type: Date,
+      default: null,
+    },
+    paymentDate: {
+      type: Date,
+      default: null,
+    },
+    paymentMode: {
+      type: String,
+      enum: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Credit Card', 'Debit Card', 'Online', 'Other'],
+      default: 'Cash',
+    },
+    receiptNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    transactionId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    remarks: {
+      type: String,
+      trim: true,
+      default: '',
     },
     academicYear: {
       type: String,
@@ -29,7 +82,7 @@ const feeSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PAID', 'PENDING', 'PARTIAL', 'OVERDUE'],
+      enum: ['PAID', 'PENDING', 'PARTIAL', 'OVERDUE', 'Paid', 'Partially Paid', 'Pending', 'Overdue'],
       default: 'PENDING',
       uppercase: true,
       trim: true,
@@ -88,6 +141,11 @@ feeSchema.virtual('balance').get(function () {
 
 // Pre-validate hook to handle totalAmount fallback and title
 feeSchema.pre('validate', function (next) {
+  if (this.amount === undefined && this.totalPayableFees !== undefined && this.totalPayableFees > 0) {
+    this.amount = this.totalPayableFees;
+  } else if ((!this.totalPayableFees || this.totalPayableFees === 0) && this.amount !== undefined) {
+    this.totalPayableFees = this.amount;
+  }
   if (this.amount === undefined && this.totalAmount !== undefined) {
     this.amount = this.totalAmount;
   }
@@ -95,17 +153,27 @@ feeSchema.pre('validate', function (next) {
     this.title = `${this.feeType || 'Tuition'} Fee`;
   }
   if (this.status) {
-    this.status = this.status.toUpperCase();
+    const s = String(this.status).toUpperCase();
+    if (s.includes('PARTIAL')) this.status = 'PARTIAL';
+    else if (s.includes('PAID')) this.status = 'PAID';
+    else if (s.includes('OVERDUE')) this.status = 'OVERDUE';
+    else this.status = 'PENDING';
   }
   next();
 });
 
 // Automatic calculation of remainingAmount and payment status before saving
 feeSchema.pre('save', function (next) {
+  if (this.amount === undefined && this.totalPayableFees !== undefined && this.totalPayableFees > 0) {
+    this.amount = this.totalPayableFees;
+  } else if ((!this.totalPayableFees || this.totalPayableFees === 0) && this.amount) {
+    this.totalPayableFees = this.amount;
+  }
   if (this.amount === undefined && this.totalAmount !== undefined) {
     this.amount = this.totalAmount;
   }
   this.amount = Number(this.amount) || 0;
+  this.totalPayableFees = Number(this.totalPayableFees) || this.amount;
   this.paidAmount = Number(this.paidAmount) || 0;
   this.remainingAmount = Math.max(0, this.amount - this.paidAmount);
 
@@ -113,7 +181,7 @@ feeSchema.pre('save', function (next) {
     this.status = 'PAID';
   } else if (this.paidAmount > 0) {
     this.status = 'PARTIAL';
-  } else if (new Date(this.dueDate) < new Date()) {
+  } else if (this.dueDate && new Date(this.dueDate) < new Date()) {
     this.status = 'OVERDUE';
   } else {
     this.status = 'PENDING';
