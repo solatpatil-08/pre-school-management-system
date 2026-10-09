@@ -54,7 +54,7 @@ class ScheduleService {
 
     const targetClassId = candidate.class ? String(candidate.class) : null;
     const targetTeacherId = candidate.teacher ? String(candidate.teacher) : null;
-    const targetRoom = candidate.room ? candidate.room.trim().toLowerCase() : '';
+    const targetRoom = (candidate.room || candidate.classroom || '').trim().toLowerCase();
 
     for (const item of existingSchedules) {
       const itemStart = timeToMinutes(item.startTime);
@@ -68,26 +68,27 @@ class ScheduleService {
 
         // 1. Same Class Conflict
         if (targetClassId && itemClassId === targetClassId) {
-          const clsName = item.class?.className || item.class?.name || 'This class';
+          const clsName = item.class?.className || item.class?.name || 'Class';
+          const sec = item.class?.section ? ` (${item.class.section})` : '';
           throw ApiError.conflict(
-            `Scheduling Conflict: ${clsName} already has "${itemActivity}" scheduled on ${day} from ${item.startTime} to ${item.endTime}.`
+            `Schedule conflict: ${clsName}${sec} already has "${itemActivity}" scheduled on ${day} from ${item.startTime} to ${item.endTime}.`
           );
         }
 
         // 2. Same Teacher Conflict
         if (targetTeacherId && itemTeacherId && targetTeacherId === itemTeacherId) {
-          const teacherName = item.teacher ? `${item.teacher.firstName} ${item.teacher.lastName}` : 'The assigned teacher';
+          const teacherName = item.teacher ? `${item.teacher.firstName} ${item.teacher.lastName}` : 'Teacher';
           const inClass = item.class?.name || item.class?.className ? ` in ${item.class.name || item.class.className}` : '';
           throw ApiError.conflict(
-            `Teacher Conflict: ${teacherName} is already assigned to "${itemActivity}"${inClass} on ${day} from ${item.startTime} to ${item.endTime}.`
+            `Schedule conflict: ${teacherName} is already assigned from ${item.startTime} to ${item.endTime}${inClass} on ${day}.`
           );
         }
 
-        // 3. Same Room Conflict
+        // 3. Same Room / Classroom Conflict
         if (targetRoom && itemRoom && targetRoom === itemRoom) {
           const inClass = item.class?.name || item.class?.className ? ` by ${item.class.name || item.class.className}` : '';
           throw ApiError.conflict(
-            `Room Conflict: Room "${candidate.room}" is already booked${inClass} for "${itemActivity}" on ${day} from ${item.startTime} to ${item.endTime}.`
+            `Schedule conflict: Classroom "${candidate.room}" is already booked from ${item.startTime} to ${item.endTime}${inClass} for "${itemActivity}" on ${day}.`
           );
         }
       }
@@ -253,8 +254,13 @@ class ScheduleService {
    */
   async createSchedule(data) {
     // Synchronize aliases
+    if (data.subject && !data.activity) {
+      data.activity = data.subject;
+      data.activityName = data.subject;
+    }
     if (data.activity && !data.activityName) data.activityName = data.activity;
     if (data.activityName && !data.activity) data.activity = data.activityName;
+    if (data.classroom && !data.room) data.room = data.classroom;
     if (data.day && !data.dayOfWeek) data.dayOfWeek = data.day;
     if (data.dayOfWeek && !data.day) data.day = data.dayOfWeek;
 

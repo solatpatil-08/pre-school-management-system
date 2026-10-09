@@ -332,16 +332,24 @@ class DashboardService {
    * Teacher Dashboard Metrics
    */
   async getTeacherDashboardStats(userId) {
-    const teacher = await Teacher.findOne({ user: userId }).populate('assignedClasses');
-    if (!teacher) {
+    const teacherDoc = await Teacher.findOne({ user: userId })
+      .populate('assignedClasses')
+      .populate('user', 'name email avatar');
+    if (!teacherDoc) {
       return null;
     }
 
-    const classIds = teacher.assignedClasses.map((c) => c._id);
+    const teacher = teacherDoc.toObject();
+    teacher.name = teacher.name || `${teacher.firstName} ${teacher.lastName}`;
+
+    const classIds = (teacher.assignedClasses || []).map((c) => c._id);
     const today = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayOfWeek = days[today.getDay()];
-    const todayDateString = today.toISOString().split('T')[0];
+    const tYear = today.getFullYear();
+    const tMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const tDay = String(today.getDate()).padStart(2, '0');
+    const todayDateString = `${tYear}-${tMonth}-${tDay}`;
     const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
 
     const [students, todaySchedules, attendanceToday, announcements, events] = await Promise.all([
@@ -380,6 +388,15 @@ class DashboardService {
       currentDay: currentDayOfWeek,
       todaySchedule: todaySchedules,
       todaySchedules,
+      attendanceToday: {
+        totalStudents: students.length,
+        markedCount,
+        present,
+        absent,
+        late,
+        leave,
+        rate,
+      },
       todayAttendance: {
         totalStudents: students.length,
         markedCount,
@@ -409,14 +426,20 @@ class DashboardService {
    * Parent Dashboard Metrics
    */
   async getParentDashboardStats(userId) {
-    const parent = await Parent.findOne({ user: userId }).populate({
-      path: 'children',
-      populate: { path: 'class', select: 'name section roomNumber teacher' },
-    });
+    const parentDoc = await Parent.findOne({ user: userId })
+      .populate('user', 'name email avatar')
+      .populate({
+        path: 'children',
+        populate: { path: 'class', select: 'name section roomNumber teacher' },
+      });
 
-    if (!parent || !parent.children || parent.children.length === 0) {
+    if (!parentDoc || !parentDoc.children || parentDoc.children.length === 0) {
+      const parentObj = parentDoc ? parentDoc.toObject() : {};
+      if (parentDoc) {
+        parentObj.name = parentObj.name || `${parentObj.firstName} ${parentObj.lastName}`;
+      }
       return {
-        parent: parent || {},
+        parent: parentObj,
         children: [],
         schedule: [],
         fees: [],
@@ -428,12 +451,18 @@ class DashboardService {
       };
     }
 
+    const parent = parentDoc.toObject();
+    parent.name = parent.name || `${parent.firstName} ${parent.lastName}`;
+
     const childIds = parent.children.map((c) => c._id);
     const classIds = parent.children.map((c) => c.class?._id).filter(Boolean);
     const today = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayOfWeek = days[today.getDay()];
-    const todayDateString = today.toISOString().split('T')[0];
+    const pYear = today.getFullYear();
+    const pMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const pDay = String(today.getDate()).padStart(2, '0');
+    const todayDateString = `${pYear}-${pMonth}-${pDay}`;
     const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
 
     const [fees, announcements, events, todayAttendanceRecords, todaySchedules] = await Promise.all([
@@ -464,15 +493,30 @@ class DashboardService {
       }
     });
 
-    // Populate each child with today's attendance, historical attendance percentage, and pending fee
+    // Populate each child with today's attendance, historical attendance breakdown, and pending fee
     const childrenWithStats = await Promise.all(
       parent.children.map(async (child) => {
-        const attendances = await Attendance.find({ student: child._id });
+        const attendances = await Attendance.find({ student: child._id }).sort({ date: -1, createdAt: -1 });
         const total = attendances.length;
-        const present = attendances.filter((a) =>
-          ['PRESENT', 'Present', 'LATE', 'Late'].includes(a.status)
+        const presentDays = attendances.filter((a) =>
+          ['PRESENT', 'Present'].includes(a.status)
         ).length;
-        const rate = total > 0 ? Math.round((present / total) * 100) : 100;
+        const lateDays = attendances.filter((a) =>
+          ['LATE', 'Late'].includes(a.status)
+        ).length;
+        const absentDays = attendances.filter((a) =>
+          ['ABSENT', 'Absent'].includes(a.status)
+        ).length;
+        const leaveDays = attendances.filter((a) =>
+          ['LEAVE', 'Leave'].includes(a.status)
+        ).length;
+        const rate = total > 0 ? Math.round(((presentDays + lateDays) / total) * 100) : 100;
+
+        const recentHistory = attendances.slice(0, 5).map((a) => ({
+          dateString: a.dateString,
+          status: (a.status || 'PRESENT').toUpperCase(),
+          remarks: a.remarks || '',
+        }));
 
         // Today's attendance status
         const todayRec = todayAttendanceRecords.find(
@@ -500,9 +544,16 @@ class DashboardService {
             : sum;
         }, 0);
 
-        const childObj = child.toObject();
+        const childObj = typeof child.toObject === 'function' ? child.toObject() : { ...child };
+        childObj.name = `${child.firstName} ${child.lastName}`;
+        childObj.totalAttendanceDays = total;
+        childObj.presentDays = presentDays;
+        childObj.lateDays = lateDays;
+        childObj.absentDays = absentDays;
+        childObj.leaveDays = leaveDays;
         childObj.attendanceRate = rate;
         childObj.todayAttendance = todayStatus;
+        childObj.recentAttendance = recentHistory;
         childObj.pendingFee = childPendingFee;
         return childObj;
       })

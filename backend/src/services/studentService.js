@@ -1,7 +1,10 @@
 const Student = require('../models/Student');
 const Parent = require('../models/Parent');
+const User = require('../models/User');
 const Class = require('../models/Class');
 const Teacher = require('../models/Teacher');
+const Fee = require('../models/Fee');
+const Payment = require('../models/Payment');
 const Setting = require('../models/Setting');
 const ApiError = require('../utils/apiError');
 
@@ -184,8 +187,31 @@ class StudentService {
 
     const totalPages = Math.ceil(total / limitNum) || 1;
 
+    // Fetch fee statuses for students
+    const studentIds = students.map((s) => s._id);
+    const feesList = await Fee.find({ student: { $in: studentIds } }).sort({ createdAt: -1 });
+
+    const studentsWithFees = students.map((s) => {
+      const sObj = s.toObject();
+      const studentFees = feesList.filter((f) => String(f.student) === String(s._id));
+      sObj.fees = studentFees;
+      const latestFee = studentFees[0];
+      if (latestFee) {
+        sObj.feeStatus = latestFee.status;
+        sObj.feePending = latestFee.remainingAmount;
+        sObj.feeTotal = latestFee.amount || latestFee.totalPayableFees;
+        sObj.feePaid = latestFee.paidAmount;
+      } else {
+        sObj.feeStatus = 'NONE';
+        sObj.feePending = 0;
+        sObj.feeTotal = 0;
+        sObj.feePaid = 0;
+      }
+      return sObj;
+    });
+
     return {
-      students,
+      students: studentsWithFees,
       total,
       currentPage: pageNum,
       page: pageNum,
@@ -249,11 +275,19 @@ class StudentService {
       }
     }
 
-    return student;
+    const fees = await Fee.find({ student: id }).sort({ createdAt: -1 });
+    const payments = await Payment.find({ student: id }).sort({ paymentDate: -1 });
+
+    const studentObj = student.toObject();
+    studentObj.fees = fees;
+    studentObj.payments = payments;
+
+    return studentObj;
   }
 
   /**
    * Register a new student (Admin only)
+   * Automatically handles Parent account creation and Fee allocation
    * @param {Object} studentData
    */
   async createStudent(studentData) {
@@ -278,17 +312,215 @@ class StudentService {
       }
     }
 
-    // 3. Create student
+    // 3. Process Parent / Guardian Information (No dropdown needed - create/link dynamically)
+    let parentId = studentData.parent;
+    let parentData = studentData.parentData || studentData.parentInfo;
+    if (!parentData && (studentData.fatherInfo || studentData.motherInfo || studentData.guardianInfo)) {
+      parentData = {
+        fatherName: studentData.fatherInfo?.name,
+        fatherPhone: studentData.fatherInfo?.phone,
+        fatherEmail: studentData.fatherInfo?.email,
+        fatherOccupation: studentData.fatherInfo?.occupation,
+        fatherAddress: studentData.fatherInfo?.address,
+        fatherCity: studentData.fatherInfo?.city,
+        fatherState: studentData.fatherInfo?.state,
+        fatherPincode: studentData.fatherInfo?.pincode,
+        fatherProfilePhoto: studentData.fatherInfo?.profilePhoto,
+        motherName: studentData.motherInfo?.name,
+        motherPhone: studentData.motherInfo?.phone,
+        motherEmail: studentData.motherInfo?.email,
+        motherOccupation: studentData.motherInfo?.occupation,
+        motherAddress: studentData.motherInfo?.address,
+        guardianName: studentData.guardianInfo?.name,
+        guardianRelationship: studentData.guardianInfo?.relationship,
+        guardianPhone: studentData.guardianInfo?.phone,
+        guardianEmail: studentData.guardianInfo?.email,
+        password: studentData.fatherInfo?.password || studentData.parentPassword,
+      };
+    }
+
+    if (parentData && (parentData.fatherName || parentData.motherName || parentData.guardianName || parentData.fullName || parentData.name || parentData.email || parentData.phone)) {
+      const primaryName = (parentData.fatherName || parentData.fullName || parentData.name || parentData.motherName || parentData.guardianName || 'Parent').trim();
+      const primaryEmail = (parentData.fatherEmail || parentData.email || parentData.motherEmail || parentData.guardianEmail || '').trim().toLowerCase();
+      const primaryPhone = (parentData.fatherPhone || parentData.phone || parentData.motherPhone || parentData.guardianPhone || '').trim();
+      const primaryOccupation = (parentData.fatherOccupation || parentData.occupation || parentData.motherOccupation || '').trim();
+      const primaryAddress = (parentData.fatherAddress || parentData.address || parentData.motherAddress || studentData.address || '').trim();
+      const primaryCity = parentData.fatherCity || parentData.city || studentData.city || 'Pune';
+      const primaryState = parentData.fatherState || parentData.state || studentData.state || 'Maharashtra';
+      const primaryPincode = parentData.fatherPincode || parentData.pincode || studentData.pincode || '';
+      const primaryAadhaar = parentData.fatherAadhaar || parentData.aadhaarNumber || studentData.aadhaarNumber || '';
+      const primaryAvatar = parentData.fatherProfilePhoto || parentData.profilePhoto || parentData.avatar || '';
+
+      const nameParts = primaryName.split(/\s+/);
+      const firstName = nameParts[0] || 'Parent';
+      const lastName = nameParts.slice(1).join(' ') || 'Guardian';
+
+      // Check if parent user already exists by email or phone to prevent duplicate accounts
+      let user = null;
+      if (primaryEmail) {
+        user = await User.findOne({ email: primaryEmail });
+      }
+      if (!user && primaryPhone) {
+        user = await User.findOne({ phone: primaryPhone, role: 'parent' });
+      }
+
+      if (!user) {
+        const loginEmail = primaryEmail || `parent.${Date.now()}@preschool.demo`;
+        const loginPassword = parentData.password || (primaryPhone ? `Parent@${primaryPhone.slice(-4)}` : 'Parent@123');
+        user = await User.create({
+          name: `${firstName} ${lastName}`,
+          email: loginEmail,
+          password: loginPassword,
+          role: 'parent',
+          phone: primaryPhone,
+          avatar: primaryAvatar,
+        });
+      }
+
+      let parentDoc = await Parent.findOne({
+        $or: [{ user: user._id }, ...(primaryEmail ? [{ email: primaryEmail }] : [])],
+      });
+
+      const motherInfo = {
+        name: parentData.motherName || '',
+        phone: parentData.motherPhone || '',
+        email: parentData.motherEmail || '',
+        occupation: parentData.motherOccupation || '',
+        address: parentData.motherAddress || primaryAddress,
+        city: parentData.motherCity || primaryCity,
+        state: parentData.motherState || primaryState,
+        pincode: parentData.motherPincode || primaryPincode,
+        profilePhoto: parentData.motherProfilePhoto || '',
+      };
+
+      const guardianInfo = {
+        name: parentData.guardianName || '',
+        relationship: parentData.guardianRelationship || 'Guardian',
+        phone: parentData.guardianPhone || '',
+        email: parentData.guardianEmail || '',
+        address: parentData.guardianAddress || primaryAddress,
+      };
+
+      if (!parentDoc) {
+        parentDoc = await Parent.create({
+          user: user._id,
+          firstName,
+          lastName,
+          email: user.email,
+          phone: primaryPhone || user.phone || '9800000000',
+          relationship: parentData.fatherName ? 'Father' : parentData.motherName ? 'Mother' : 'Guardian',
+          occupation: primaryOccupation,
+          address: primaryAddress,
+          city: primaryCity,
+          state: primaryState,
+          pincode: primaryPincode,
+          aadhaarNumber: primaryAadhaar,
+          profilePhoto: primaryAvatar,
+          motherInfo,
+          guardianInfo,
+          children: [],
+        });
+      } else {
+        if (parentData.motherName && !parentDoc.motherInfo?.name) {
+          parentDoc.motherInfo = motherInfo;
+        }
+        if (parentData.guardianName && !parentDoc.guardianInfo?.name) {
+          parentDoc.guardianInfo = guardianInfo;
+        }
+        await parentDoc.save();
+      }
+
+      parentId = parentDoc._id;
+      studentData.parent = parentId;
+    }
+
+    // 4. Create student record
     const student = await Student.create(studentData);
 
-    // 4. If parent provided, link to parent's children array
+    // 5. Link student in Parent children list
     if (studentData.parent) {
       await Parent.findByIdAndUpdate(studentData.parent, {
         $addToSet: { children: student._id },
       });
     }
 
-    return await student.populate(['class', 'parent']);
+    // 6. Process Fee Information if provided
+    const feeData = studentData.feeData || studentData.feeInfo || studentData.fee;
+    if (feeData) {
+      const admissionFees = Math.max(0, Number(feeData.admissionFees) || 0);
+      const tuitionFees = Math.max(0, Number(feeData.tuitionFees) || 0);
+      const otherFees = Math.max(0, Number(feeData.otherFees) || 0);
+      const annualFees = Math.max(0, Number(feeData.annualFees) || (admissionFees + tuitionFees + otherFees));
+
+      let totalPayableFees = Number(feeData.totalPayableFees);
+      if (isNaN(totalPayableFees) || totalPayableFees <= 0) {
+        totalPayableFees = annualFees > 0 ? annualFees : (admissionFees + tuitionFees + otherFees);
+      }
+      totalPayableFees = Math.max(0, totalPayableFees);
+
+      let amountPaid = Math.max(0, Number(feeData.amountPaid !== undefined ? feeData.amountPaid : feeData.paidAmount) || 0);
+      if (amountPaid > totalPayableFees && totalPayableFees > 0) {
+        amountPaid = totalPayableFees;
+      }
+
+      const remainingAmount = Math.max(0, totalPayableFees - amountPaid);
+      let status = 'PENDING';
+      if (amountPaid >= totalPayableFees && totalPayableFees > 0) {
+        status = 'PAID';
+      } else if (amountPaid > 0) {
+        status = 'PARTIAL';
+      }
+
+      const dueDate = feeData.nextPaymentDueDate || feeData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const paymentDate = feeData.paymentDate || new Date();
+      const paymentMode = feeData.paymentMode || 'Cash';
+      const receiptNumber = feeData.receiptNumber || `REC-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const transactionId = feeData.transactionId || (paymentMode !== 'Cash' ? `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}` : '');
+      const remarks = feeData.remarks || feeData.description || 'Initial Enrollment Fees';
+
+      const createdFee = await Fee.create({
+        student: student._id,
+        feeType: 'Admission & Tuition',
+        title: `Annual Course & Admission Fees - ${student.firstName} ${student.lastName}`,
+        amount: totalPayableFees,
+        annualFees,
+        admissionFees,
+        tuitionFees,
+        otherFees,
+        totalPayableFees,
+        paidAmount: amountPaid,
+        remainingAmount,
+        dueDate,
+        nextPaymentDueDate: feeData.nextPaymentDueDate || (remainingAmount > 0 ? dueDate : null),
+        paymentDate,
+        paymentMode,
+        receiptNumber,
+        transactionId,
+        remarks,
+        status,
+        academicYear: studentData.academicYear || '2026-2027',
+        description: `Enrollment Fee Breakdown: Admission ₹${admissionFees}, Tuition ₹${tuitionFees}, Other ₹${otherFees}.`,
+      });
+
+      if (amountPaid > 0) {
+        await Payment.create({
+          student: student._id,
+          fee: createdFee._id,
+          amount: amountPaid,
+          paymentDate,
+          paymentMethod: paymentMode,
+          receiptNumber,
+          transactionId: transactionId || `TXN-${Date.now()}`,
+          notes: remarks,
+        });
+      }
+    }
+
+    const populatedStudent = await Student.findById(student._id).populate(['class', 'parent']);
+    const fees = await Fee.find({ student: student._id });
+    const studentObj = populatedStudent.toObject();
+    studentObj.fees = fees;
+    return studentObj;
   }
 
   /**
@@ -335,7 +567,134 @@ class StudentService {
       }
     }
 
-    Object.assign(student, updateData);
+    // Update parent record details if parentData provided
+    const parentData = updateData.parentData || updateData.parentInfo;
+    if (parentData && student.parent) {
+      const parentDoc = await Parent.findById(student.parent);
+      if (parentDoc) {
+        if (parentData.fatherName) {
+          const parts = parentData.fatherName.trim().split(/\s+/);
+          parentDoc.firstName = parts[0] || parentDoc.firstName;
+          parentDoc.lastName = parts.slice(1).join(' ') || parentDoc.lastName;
+        }
+        if (parentData.fatherPhone) parentDoc.phone = parentData.fatherPhone.trim();
+        if (parentData.fatherEmail) parentDoc.email = parentData.fatherEmail.trim().toLowerCase();
+        if (parentData.fatherOccupation) parentDoc.occupation = parentData.fatherOccupation.trim();
+        if (parentData.fatherAddress) parentDoc.address = parentData.fatherAddress.trim();
+        if (parentData.fatherCity) parentDoc.city = parentData.fatherCity.trim();
+        if (parentData.fatherState) parentDoc.state = parentData.fatherState.trim();
+        if (parentData.fatherPincode) parentDoc.pincode = parentData.fatherPincode.trim();
+
+        if (parentData.motherName || parentData.motherPhone || parentData.motherEmail) {
+          parentDoc.motherInfo = {
+            ...(parentDoc.motherInfo || {}),
+            name: parentData.motherName || parentDoc.motherInfo?.name || '',
+            phone: parentData.motherPhone || parentDoc.motherInfo?.phone || '',
+            email: parentData.motherEmail || parentDoc.motherInfo?.email || '',
+            occupation: parentData.motherOccupation || parentDoc.motherInfo?.occupation || '',
+            address: parentData.motherAddress || parentDoc.address || '',
+            city: parentData.motherCity || parentDoc.city || 'Pune',
+            state: parentData.motherState || parentDoc.state || 'Maharashtra',
+            pincode: parentData.motherPincode || parentDoc.pincode || '',
+          };
+        }
+
+        if (parentData.guardianName || parentData.guardianPhone) {
+          parentDoc.guardianInfo = {
+            ...(parentDoc.guardianInfo || {}),
+            name: parentData.guardianName || parentDoc.guardianInfo?.name || '',
+            relationship: parentData.guardianRelationship || parentDoc.guardianInfo?.relationship || 'Guardian',
+            phone: parentData.guardianPhone || parentDoc.guardianInfo?.phone || '',
+            email: parentData.guardianEmail || parentDoc.guardianInfo?.email || '',
+            address: parentData.guardianAddress || parentDoc.address || '',
+          };
+        }
+
+        await parentDoc.save();
+
+        // Also update linked user email/name if exists
+        if (parentDoc.user) {
+          await User.findByIdAndUpdate(parentDoc.user, {
+            name: `${parentDoc.firstName} ${parentDoc.lastName}`,
+            email: parentDoc.email,
+            phone: parentDoc.phone,
+          });
+        }
+      }
+    }
+
+    // Update fee record details if feeData provided
+    const feeData = updateData.feeData || updateData.feeInfo;
+    if (feeData) {
+      const annualFees = Math.max(0, Number(feeData.annualFees) || 0);
+      const admissionFees = Math.max(0, Number(feeData.admissionFees) || 0);
+      const tuitionFees = Math.max(0, Number(feeData.tuitionFees) || 0);
+      const otherFees = Math.max(0, Number(feeData.otherFees) || 0);
+      let totalPayableFees = Number(feeData.totalPayableFees);
+      if (isNaN(totalPayableFees) || totalPayableFees <= 0) {
+        totalPayableFees = admissionFees + tuitionFees + otherFees + annualFees;
+      }
+      let amountPaid = Math.max(0, Number(feeData.amountPaid !== undefined ? feeData.amountPaid : feeData.paidAmount) || 0);
+      if (amountPaid > totalPayableFees && totalPayableFees > 0) amountPaid = totalPayableFees;
+      const remainingAmount = Math.max(0, totalPayableFees - amountPaid);
+
+      let status = 'PENDING';
+      if (amountPaid >= totalPayableFees && totalPayableFees > 0) status = 'PAID';
+      else if (amountPaid > 0) status = 'PARTIAL';
+
+      let existingFee = await Fee.findOne({ student: student._id }).sort({ createdAt: -1 });
+      if (existingFee) {
+        existingFee.annualFees = annualFees;
+        existingFee.admissionFees = admissionFees;
+        existingFee.tuitionFees = tuitionFees;
+        existingFee.otherFees = otherFees;
+        existingFee.totalPayableFees = totalPayableFees;
+        existingFee.amount = totalPayableFees;
+        existingFee.paidAmount = amountPaid;
+        existingFee.remainingAmount = remainingAmount;
+        existingFee.status = status;
+        if (feeData.paymentMode) existingFee.paymentMode = feeData.paymentMode;
+        if (feeData.receiptNumber) existingFee.receiptNumber = feeData.receiptNumber;
+        if (feeData.transactionId) existingFee.transactionId = feeData.transactionId;
+        if (feeData.nextPaymentDueDate) existingFee.nextPaymentDueDate = feeData.nextPaymentDueDate;
+        if (feeData.remarks) existingFee.remarks = feeData.remarks;
+        await existingFee.save();
+      } else if (totalPayableFees > 0) {
+        await Fee.create({
+          student: student._id,
+          feeType: 'Admission & Tuition',
+          title: `Annual Course & Admission Fees - ${student.firstName} ${student.lastName}`,
+          amount: totalPayableFees,
+          annualFees,
+          admissionFees,
+          tuitionFees,
+          otherFees,
+          totalPayableFees,
+          paidAmount,
+          remainingAmount,
+          status,
+          dueDate: feeData.nextPaymentDueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          nextPaymentDueDate: feeData.nextPaymentDueDate || null,
+          paymentDate: feeData.paymentDate || new Date(),
+          paymentMode: feeData.paymentMode || 'Cash',
+          receiptNumber: feeData.receiptNumber || `REC-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`,
+          transactionId: feeData.transactionId || '',
+          remarks: feeData.remarks || 'Enrollment Fees',
+        });
+      }
+    }
+
+    // Clean payload of nested sub-objects before updating Student doc
+    const cleanStudentData = { ...updateData };
+    delete cleanStudentData.parentData;
+    delete cleanStudentData.parentInfo;
+    delete cleanStudentData.feeData;
+    delete cleanStudentData.feeInfo;
+    delete cleanStudentData.fatherInfo;
+    delete cleanStudentData.motherInfo;
+    delete cleanStudentData.guardianInfo;
+
+    Object.assign(student, cleanStudentData);
     await student.save();
 
     return await student.populate(['class', 'parent']);

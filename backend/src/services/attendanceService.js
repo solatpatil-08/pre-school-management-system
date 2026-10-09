@@ -17,6 +17,20 @@ function normalizeStatus(status) {
   return 'PRESENT';
 }
 
+/**
+ * Safely parse date string into YYYY-MM-DD without UTC timezone offset corruption
+ */
+function normalizeDateString(dateVal) {
+  if (!dateVal) return new Date().toISOString().split('T')[0];
+  if (typeof dateVal === 'string') {
+    const match = dateVal.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  return d.toISOString().split('T')[0];
+}
+
 class AttendanceService {
   /**
    * Helper to retrieve assigned class IDs for a teacher
@@ -37,10 +51,19 @@ class AttendanceService {
    * Get attendance records with role scoping and statistics
    */
   async getAttendance(user, query = {}) {
-    const { classId, class: qClass, date, dateString, studentId, student: qStudent, status, startDate, endDate, search } = query;
+    const { classId, class: qClass, date, dateString, studentId, student: qStudent, status, startDate, endDate, search, section, division } = query;
     const filter = {};
 
-    const targetClass = classId || qClass;
+    let targetClass = classId || qClass;
+
+    // Support looking up class by name & section if passed
+    if (!targetClass && query.className) {
+      const clsDoc = await Class.findOne({
+        $or: [{ name: query.className }, { className: query.className }],
+        ...(section || division ? { section: section || division } : {}),
+      });
+      if (clsDoc) targetClass = clsDoc._id;
+    }
     const targetStudent = studentId || qStudent;
 
     // 1. Role-based scoping
@@ -157,8 +180,8 @@ class AttendanceService {
     const classId = data.class || data.classId;
     const { date, remarks } = data;
     const status = normalizeStatus(data.status);
-    const d = new Date(date);
-    const dateString = d.toISOString().split('T')[0];
+    const dateString = normalizeDateString(data.dateString || date);
+    const d = new Date(dateString + 'T00:00:00.000Z');
 
     // Check teacher authorization
     if (user && user.role === 'teacher') {
@@ -208,8 +231,8 @@ class AttendanceService {
   async markBulkAttendance(payload, user) {
     const { classId, date } = payload;
     const attendanceData = payload.attendanceData || payload.records || [];
-    const d = new Date(date);
-    const dateString = d.toISOString().split('T')[0];
+    const dateString = normalizeDateString(payload.dateString || date);
+    const d = new Date(dateString + 'T00:00:00.000Z');
 
     if (!Array.isArray(attendanceData) || attendanceData.length === 0) {
       throw ApiError.badRequest('Attendance items must be a non-empty array');
@@ -223,6 +246,8 @@ class AttendanceService {
     } else if (user && user.role === 'parent') {
       throw ApiError.forbidden('Parents are not authorized to mark attendance');
     }
+
+    const existingCount = await Attendance.countDocuments({ class: classId, dateString });
 
     // Perform atomic upserts to prevent duplicate records per student/date
     const operations = attendanceData.map((item) => {
@@ -265,8 +290,11 @@ class AttendanceService {
     const total = updatedRecords.length;
     const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
+    const message = existingCount > 0 ? 'Attendance saved successfully.' : 'Attendance saved successfully.';
+
     return {
-      message: `Attendance recorded for ${attendanceData.length} students on ${dateString}`,
+      message,
+      alreadyExisted: existingCount > 0,
       recordsCount: updatedRecords.length,
       records: updatedRecords,
       stats: {
@@ -341,6 +369,7 @@ class AttendanceService {
 
     return {
       records,
+      attendance: records,
       stats: {
         totalDays,
         presentDays,
