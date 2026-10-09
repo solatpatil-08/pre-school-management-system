@@ -13,11 +13,13 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 import { Skeleton, SkeletonStats, SkeletonCard } from '../../components/common/Skeleton';
 import ErrorState from '../../components/common/ErrorState';
 
 const ParentDashboard = () => {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -98,7 +100,7 @@ const ParentDashboard = () => {
             Parent & Family Portal
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome, {parent.firstName} {parent.lastName}!
+            Welcome back, {user?.name || (parent.firstName ? `${parent.firstName} ${parent.lastName || ''}`.trim() : 'Parent')}!
           </h1>
           <p className="text-emerald-100 text-sm mt-1 max-w-xl">
             Stay closely connected with your child's daily learning, attendance, meal routines, and fees.
@@ -111,7 +113,7 @@ const ParentDashboard = () => {
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 text-xs font-extrabold shadow-md transition-all"
           >
             <CreditCard className="w-4 h-4" />
-            <span>Pay Due Fees (${pendingTotal.toLocaleString()})</span>
+            <span>Pay Due Fees (₹{Number(pendingTotal).toLocaleString('en-IN')})</span>
           </button>
         )}
       </div>
@@ -188,9 +190,14 @@ const ParentDashboard = () => {
                     </div>
                     <div>
                       <span className="text-slate-400 block font-medium">Attendance Percentage</span>
-                      <span className="font-bold text-emerald-600 text-sm">
-                        {child.attendanceRate !== undefined ? child.attendanceRate : 100}%
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="font-bold text-emerald-600 text-sm">
+                          {child.attendanceRate !== undefined ? child.attendanceRate : 100}%
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-semibold">
+                          ({child.presentDays || 0}P / {child.absentDays || 0}A / {child.lateDays || 0}L)
+                        </span>
+                      </div>
                     </div>
                     <div>
                       <span className="text-slate-400 block font-medium">Pending Fees</span>
@@ -199,10 +206,35 @@ const ParentDashboard = () => {
                           child.pendingFee > 0 ? 'text-amber-600' : 'text-emerald-600'
                         }`}
                       >
-                        ${child.pendingFee || 0}
+                        ₹{Number(child.pendingFee || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
+
+                  {child.recentAttendance && child.recentAttendance.length > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-500">Recent Attendance:</span>
+                      <div className="flex items-center gap-1.5">
+                        {child.recentAttendance.map((rec, idx) => (
+                          <span
+                            key={idx}
+                            title={`${rec.dateString}: ${rec.status}`}
+                            className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
+                              rec.status === 'PRESENT'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : rec.status === 'LATE'
+                                ? 'bg-amber-100 text-amber-700'
+                                : rec.status === 'ABSENT'
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {rec.status === 'PRESENT' ? 'P' : rec.status === 'LATE' ? 'L' : rec.status === 'ABSENT' ? 'A' : 'V'}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {child.allergies && child.allergies !== 'None' && (
                     <p className="text-xs text-rose-600 font-bold flex items-center gap-1.5 mb-2">

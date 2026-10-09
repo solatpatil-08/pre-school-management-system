@@ -38,10 +38,19 @@ const STATUS_CONFIG = {
   },
 };
 
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const TeacherAttendance = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString);
+  const [isExistingAttendance, setIsExistingAttendance] = useState(false);
   const [students, setStudents] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({});
   const [remarksMap, setRemarksMap] = useState({});
@@ -71,6 +80,57 @@ const TeacherAttendance = () => {
     fetchClasses();
   }, []);
 
+  // Extract distinct class names and sections
+  const classNames = useMemo(() => {
+    const list = [];
+    classes.forEach((c) => {
+      const name = c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name;
+      if (name && !list.includes(name)) list.push(name);
+    });
+    return list;
+  }, [classes]);
+
+  const currentClass = useMemo(() => {
+    return classes.find((c) => c._id === selectedClass) || classes[0] || null;
+  }, [classes, selectedClass]);
+
+  const currentClassName = currentClass
+    ? (currentClass.className || currentClass.name?.replace(/\s+[A-Z]$/, '') || currentClass.name)
+    : '';
+  const currentSection = currentClass?.section || 'A';
+
+  const availableSections = useMemo(() => {
+    if (!currentClassName) return ['A'];
+    const matches = classes.filter(
+      (c) => (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === currentClassName
+    );
+    const sects = matches.map((c) => c.section || 'A');
+    return Array.from(new Set(sects));
+  }, [classes, currentClassName]);
+
+  const handleSelectClassName = (name) => {
+    let match = classes.find(
+      (c) =>
+        (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === name &&
+        (c.section || 'A') === currentSection
+    );
+    if (!match) {
+      match = classes.find(
+        (c) => (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === name
+      );
+    }
+    if (match) setSelectedClass(match._id);
+  };
+
+  const handleSelectSection = (sec) => {
+    const match = classes.find(
+      (c) =>
+        (c.className || c.name?.replace(/\s+[A-Z]$/, '') || c.name) === currentClassName &&
+        (c.section || 'A') === sec
+    );
+    if (match) setSelectedClass(match._id);
+  };
+
   const loadAttendance = async () => {
     if (!selectedClass || !selectedDate) return;
     try {
@@ -90,6 +150,8 @@ const TeacherAttendance = () => {
         attRes.data?.data?.records ||
         attRes.data?.records ||
         (Array.isArray(attRes.data?.data) ? attRes.data.data : []);
+
+      setIsExistingAttendance(existingLogs.length > 0);
 
       const newMap = {};
       const newRemarks = {};
@@ -155,7 +217,7 @@ const TeacherAttendance = () => {
       });
 
       if (res.data?.success) {
-        showToast('Daily class attendance saved and submitted successfully!', 'success');
+        showToast('Attendance saved successfully.', 'success');
         loadAttendance();
       }
     } catch (err) {
@@ -216,34 +278,57 @@ const TeacherAttendance = () => {
         </button>
       </div>
 
-      {/* Control Bar: Class, Date, Quick Mark */}
+      {/* Control Bar: Class, Division, Date, Quick Mark */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-card flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
+          {/* Select Class */}
           <div className="flex items-center gap-2.5 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
             <School className="w-4 h-4 text-indigo-600" />
             <div>
               <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                Assigned Class
+                Class
               </label>
               <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
+                value={currentClassName}
+                onChange={(e) => handleSelectClassName(e.target.value)}
                 className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
-                {classes.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.className || c.name} ({c.section})
+                {classNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
+          {/* Select Division / Section */}
+          <div className="flex items-center gap-2.5 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
+            <School className="w-4 h-4 text-purple-600" />
+            <div>
+              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                Division / Section
+              </label>
+              <select
+                value={currentSection}
+                onChange={(e) => handleSelectSection(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                {availableSections.map((sec) => (
+                  <option key={sec} value={sec}>
+                    Division {sec}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Select Date */}
           <div className="flex items-center gap-2.5 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
             <Calendar className="w-4 h-4 text-emerald-600" />
             <div>
               <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                Date
+                Attendance Date
               </label>
               <input
                 type="date"
@@ -283,6 +368,19 @@ const TeacherAttendance = () => {
           </button>
         </div>
       </div>
+
+      {/* Existing Attendance Notice Banner */}
+      {isExistingAttendance && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-semibold animate-fade-in shadow-subtle">
+          <div className="flex items-center gap-2.5">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Attendance for this class and date already exists. You can update it.</span>
+          </div>
+          <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-200">
+            Existing Record
+          </span>
+        </div>
+      )}
 
       {/* Metrics Counter Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">

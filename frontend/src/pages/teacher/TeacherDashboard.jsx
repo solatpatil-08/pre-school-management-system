@@ -13,11 +13,13 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 import { Skeleton, SkeletonStats, SkeletonCard } from '../../components/common/Skeleton';
 import ErrorState from '../../components/common/ErrorState';
 
 const TeacherDashboard = () => {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -100,7 +102,7 @@ const TeacherDashboard = () => {
             Educator Workspace
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Hello, Teacher {teacherInfo.firstName || 'Educator'}!
+            Welcome back, {user?.name || (teacherInfo.firstName ? `${teacherInfo.firstName} ${teacherInfo.lastName || ''}`.trim() : 'Educator')}!
           </h1>
           <p className="text-blue-100 text-sm mt-1 max-w-xl">
             Here is your daily classroom routine, today's attendance summary, and announcements for {currentDay}.
@@ -129,7 +131,7 @@ const TeacherDashboard = () => {
         <StatCard
           title="Today's Attendance"
           value={`${todayAttendance.rate !== undefined ? todayAttendance.rate : 0}%`}
-          subtitle={`${todayAttendance.present || 0} Present / ${todayAttendance.totalStudents || 0} Enrolled`}
+          subtitle={`${todayAttendance.present || 0} Present • ${todayAttendance.absent || 0} Absent • ${todayAttendance.late || 0} Late`}
           icon={CalendarCheck}
           color="emerald"
           onClick={() => navigate('/teacher/attendance')}

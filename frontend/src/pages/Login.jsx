@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Baby, Lock, Mail, Eye, EyeOff, ShieldCheck, UserCheck, Heart } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@preschool.com');
+  const [email, setEmail] = useState('admin@preschool.demo');
   const [password, setPassword] = useState('Admin@123');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,9 +17,9 @@ const Login = () => {
   const location = useLocation();
 
   const demoAccounts = {
-    admin: { email: 'admin@preschool.com', password: 'Admin@123', label: 'Admin (Principal)', icon: ShieldCheck, color: 'purple' },
-    teacher: { email: 'teacher@preschool.com', password: 'Teacher@123', label: 'Teacher (Educator)', icon: UserCheck, color: 'blue' },
-    parent: { email: 'parent@preschool.com', password: 'Parent@123', label: 'Parent (Guardian)', icon: Heart, color: 'emerald' },
+    admin: { email: 'admin@preschool.demo', password: 'Admin@123', label: 'Admin (Prakash Patil)', icon: ShieldCheck, color: 'purple' },
+    teacher: { email: 'sneha.teacher@preschool.demo', password: 'Teacher@123', label: 'Teacher (Sneha Kulkarni)', icon: UserCheck, color: 'blue' },
+    parent: { email: 'rahul.parent@preschool.demo', password: 'Parent@123', label: 'Parent (Rahul Patil)', icon: Heart, color: 'emerald' },
   };
 
   const handleSelectDemo = (roleKey) => {

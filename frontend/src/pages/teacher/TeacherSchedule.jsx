@@ -10,7 +10,7 @@ import {
   MapPin,
 } from 'lucide-react';
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const ACTIVITY_BADGES = {
   Academic: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -50,7 +50,7 @@ const TeacherSchedule = () => {
     fetchSchedule();
   }, []);
 
-  // Group schedules by day of week (Monday to Friday)
+  // Group schedules by day of week (Monday to Saturday)
   const groupedSchedules = useMemo(() => {
     const map = {
       Monday: [],
@@ -58,6 +58,7 @@ const TeacherSchedule = () => {
       Wednesday: [],
       Thursday: [],
       Friday: [],
+      Saturday: [],
     };
 
     schedules.forEach((slot) => {
@@ -102,7 +103,7 @@ const TeacherSchedule = () => {
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
-            <span>Weekly Timetable (Mon-Fri)</span>
+            <span>Weekly Timetable (Mon-Sat)</span>
           </button>
           <button
             type="button"
@@ -129,9 +130,9 @@ const TeacherSchedule = () => {
         />
       ) : (
         <>
-          {/* VIEW 1: WEEKLY TIMETABLE (Monday to Friday) */}
+          {/* VIEW 1: WEEKLY TIMETABLE (Monday to Saturday) */}
           {viewMode === 'timetable' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-start">
               {WEEKDAYS.map((day) => {
                 const daySlots = groupedSchedules[day] || [];
                 return (

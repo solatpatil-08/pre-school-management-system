@@ -235,7 +235,7 @@ const ParentFees = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
-            ${totalBilled.toLocaleString()}
+            ₹{totalBilled.toLocaleString()}
           </h3>
           <span className="text-[11px] text-slate-400 mt-1 block">Across all registered children</span>
         </div>
@@ -249,7 +249,7 @@ const ParentFees = () => {
             </div>
           </div>
           <h3 className="text-2xl font-extrabold text-emerald-700 mt-2">
-            ${totalPaid.toLocaleString()}
+            ₹{totalPaid.toLocaleString()}
           </h3>
           <span className="text-[11px] text-emerald-600 font-semibold mt-1 block">
             {totalBilled > 0 ? `${Math.round((totalPaid / totalBilled) * 100)}% settled` : '100%'}
@@ -269,7 +269,7 @@ const ParentFees = () => {
               totalDue > 0 ? 'text-amber-700' : 'text-emerald-700'
             }`}
           >
-            ${totalDue.toLocaleString()}
+            ₹{totalDue.toLocaleString()}
           </h3>
           <span className="text-[11px] text-slate-500 mt-1 block">
             {totalDue > 0 ? 'Due across active terms' : 'All invoices cleared!'}
@@ -423,7 +423,7 @@ const ParentFees = () => {
                         {p.fee?.feeType || 'Tuition'}
                       </td>
                       <td className="py-3.5 px-4 font-extrabold text-emerald-600 text-sm">
-                        ${p.amount?.toLocaleString()}
+                        ₹{p.amount?.toLocaleString()}
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px]">
@@ -527,12 +527,12 @@ const ParentFees = () => {
                             : 'text-emerald-600'
                         }`}
                       >
-                        ${remainingAmt.toLocaleString()}
+                        ₹{remainingAmt.toLocaleString()}
                       </span>
                       <div className="text-[11px] text-slate-400 mt-0.5 space-x-2">
-                        <span>Billed: ${totalAmt?.toLocaleString()}</span>
+                        <span>Billed: ₹{totalAmt?.toLocaleString()}</span>
                         <span>•</span>
-                        <span className="text-emerald-600 font-semibold">Paid: ${paidAmt.toLocaleString()}</span>
+                        <span className="text-emerald-600 font-semibold">Paid: ₹{paidAmt.toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -585,7 +585,7 @@ const ParentFees = () => {
               <div className="flex justify-between pt-1.5 border-t border-slate-200">
                 <span className="text-slate-700 font-bold">Outstanding Balance:</span>
                 <span className="font-extrabold text-amber-700 text-sm">
-                  ${(selectedFee.remainingAmount !== undefined
+                  ₹{(selectedFee.remainingAmount !== undefined
                     ? selectedFee.remainingAmount
                     : Math.max(0, (selectedFee.amount || selectedFee.totalAmount) - (selectedFee.paidAmount || 0))
                   )?.toLocaleString()}
@@ -595,7 +595,7 @@ const ParentFees = () => {
 
             {/* Payment Amount Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount to Pay ($) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount to Pay (₹) *</label>
               <div className="relative">
                 <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -699,7 +699,7 @@ const ParentFees = () => {
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>{submitting ? 'Authorizing...' : `Pay $${checkoutForm.amount || 0} Securely`}</span>
+                <span>{submitting ? 'Authorizing...' : `Pay ₹${checkoutForm.amount || 0} Securely`}</span>
               </button>
             </div>
           </form>
@@ -759,7 +759,7 @@ const ParentFees = () => {
               <div className="flex justify-between pt-2 border-t border-slate-200">
                 <span className="text-sm font-bold text-slate-800">Total Amount Paid:</span>
                 <span className="text-base font-extrabold text-emerald-600">
-                  ${receiptData.amount?.toLocaleString()}
+                  ₹{receiptData.amount?.toLocaleString()}
                 </span>
               </div>
             </div>
