@@ -32,7 +32,7 @@ const createTeacherValidator = [
     .withMessage('Email address is required')
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('phone')
     .trim()
     .notEmpty()
@@ -101,7 +101,7 @@ const updateTeacherValidator = [
     .trim()
     .isEmail()
     .withMessage('Please provide a valid email address')
-    .normalizeEmail(),
+    .normalizeEmail({ gmail_remove_dots: false }),
   body('phone')
     .optional()
     .trim(),

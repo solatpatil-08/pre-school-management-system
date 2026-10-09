@@ -27,8 +27,31 @@ const createStudentValidator = [
     .withMessage('Class must be a valid MongoDB ObjectId'),
   body('parent')
     .optional({ nullable: true, checkFalsy: true })
-    .isMongoId()
-    .withMessage('Parent must be a valid MongoDB ObjectId'),
+    .custom((val) => {
+      if (!val) return true;
+      if (typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val)) return true;
+      if (typeof val === 'object') return true;
+      throw new Error('Parent must be a valid ID or parent object');
+    }),
+  body('parentData')
+    .optional()
+    .isObject()
+    .withMessage('Parent data must be an object'),
+  body('feeData')
+    .optional()
+    .isObject()
+    .custom((fee) => {
+      if (!fee) return true;
+      const total = Number(fee.totalPayableFees !== undefined ? fee.totalPayableFees : (fee.annualFees || fee.amount || 0));
+      const paid = Number(fee.amountPaid !== undefined ? fee.amountPaid : (fee.paidAmount || 0));
+      if (total < 0 || paid < 0) {
+        throw new Error('Fee amounts cannot be negative');
+      }
+      if (paid > total && total > 0) {
+        throw new Error('Amount paid cannot exceed total payable fees');
+      }
+      return true;
+    }),
   body('studentId')
     .optional({ checkFalsy: true })
     .trim(),
